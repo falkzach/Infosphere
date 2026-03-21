@@ -166,7 +166,7 @@ maybe_clear() {
 
 call_mcp() {
   local tool="$1"
-  local arguments_json="${2:-{}}"
+  local arguments_json="${2:-'{}'}"
   INFOSPHERE_MCP_ARGS="$arguments_json" \
     python3 "$repo_root/scripts/mcp_tool.py" \
       --tool "$tool" \

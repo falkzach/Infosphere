@@ -89,7 +89,6 @@ role_context="$repo_root/agents/roles/$role/context.md"
 runtime_path="$repo_root/$runtime_file"
 
 for required_file in \
-  "$repo_root/AGENT.md" \
   "$runtime_path" \
   "$repo_root/agents/shared/principles.md" \
   "$repo_root/agents/shared/workflow.md" \
@@ -111,22 +110,20 @@ cat > "$packet" <<EOF
 Role: $role
 Runtime: $runtime
 Repository: $repo_root
+Role prompt: $role_prompt
+Role context: $role_context
+Runtime overlay: $runtime_path
+Shared principles: $repo_root/agents/shared/principles.md
+Shared workflow: $repo_root/agents/shared/workflow.md
+Shared terminology: $repo_root/agents/shared/terminology.md
 
 ## MCP Command
 
 \`\`\`bash
 INFOSPHERE_API_BASE_URL=http://localhost:5080 \\
 DOTNET_CLI_HOME=/tmp \\
-dotnet run --project src/Infosphere.Mcp/Infosphere.Mcp.csproj --no-build
+dotnet run --project src/Infosphere.Mcp/Infosphere.Mcp.csproj
 \`\`\`
-
-## Base Guidance
-
-EOF
-
-cat "$repo_root/AGENT.md" >> "$packet"
-
-cat >> "$packet" <<EOF
 
 ## Runtime Overlay
 
@@ -179,10 +176,10 @@ cat >> "$packet" <<EOF
 ## Launch Checklist
 
 1. Start the local stack with \`docker compose up -d --build\`.
-2. Ensure the MCP project builds if needed.
-3. Launch the runtime with this packet as startup context.
+2. Read the role prompt and role context files listed above.
+3. Launch the runtime with a compact startup prompt that references those files.
 4. Point the runtime at the MCP command above.
-5. Register an agent session in the correct workspace once connected.
+5. Use the existing registered session rather than creating a second one.
 
 EOF
 

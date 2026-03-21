@@ -185,11 +185,22 @@ Operational rules for this live session:
 - you are running with local approvals and sandbox bypassed intentionally
 - you are allowed to edit code, run builds, run tests, restart containers, and perform normal local development operations needed to complete work
 
-Repo bootstrap packet follows.
+Startup guidance:
+- first inspect workspace messages
+- then inspect available tasks
+- if there is no actionable work, remain idle rather than inventing tasks
+- consult the referenced role files when you need more detailed guidance
 
+Reference files:
+- bootstrap packet: $bootstrap_path
+- role prompt: $repo_root/agents/roles/$role/prompt.md
+- role context: $repo_root/agents/roles/$role/context.md
+- shared principles: $repo_root/agents/shared/principles.md
+- shared workflow: $repo_root/agents/shared/workflow.md
+- shared terminology: $repo_root/agents/shared/terminology.md
+
+Do not ask for those files to be pasted up front. Read them from disk only if needed.
 EOF
-
-cat "$bootstrap_path" >> "$runtime_prompt"
 
 codex mcp remove "$mcp_name" >/dev/null 2>&1 || true
 codex mcp add "$mcp_name" \

@@ -146,9 +146,184 @@ PY
 
 runtime_prompt="$(mktemp "/tmp/${session_name}-runtime-XXXX.md")"
 mcp_name="infosphere-${session_name}"
+state_dir="/tmp/infosphere-agent-state"
+state_file="$state_dir/${session_name}.env"
+heartbeat_pid=""
+
+mkdir -p "$state_dir"
+
+call_mcp() {
+  local tool="$1"
+  local arguments_json="${2:-{}}"
+  python3 "$repo_root/scripts/mcp_tool.py" \
+    --tool "$tool" \
+    --arguments "$arguments_json" \
+    --api-base-url "$api_base_url"
+}
+
+json_arg() {
+  python3 - "$@" <<'PY'
+import json
+import sys
+
+pairs = sys.argv[1:]
+payload = {}
+for pair in pairs:
+    key, value = pair.split("=", 1)
+    if value == "__NULL__":
+        payload[key] = None
+    elif value.startswith("int:"):
+        payload[key] = int(value[4:])
+    else:
+        payload[key] = value
+print(json.dumps(payload))
+PY
+}
+
+assigned_tasks_summary() {
+  local response
+  response="$(call_mcp "list_tasks" "$(json_arg "workspaceId=$workspace_id")")"
+  RESPONSE="$response" AGENT_ID="$agent_id" python3 - <<'PY'
+import json
+import os
+
+response = json.loads(os.environ["RESPONSE"])
+agent_id = os.environ["AGENT_ID"]
+tasks = response["result"]["structuredContent"]["tasks"]
+relevant = [
+    {
+        "id": task["id"],
+        "title": task["title"],
+        "stateId": task["state"]["id"],
+        "stateKey": task["state"]["key"],
+    }
+    for task in tasks
+    if task.get("assignedAgentId") == agent_id and task["state"]["id"] not in (4, 5, 99)
+]
+print(json.dumps({"count": len(relevant), "tasks": relevant}))
+PY
+}
+
+available_tasks_count() {
+  local response
+  response="$(call_mcp "list_available_tasks" "$(json_arg "workspaceId=$workspace_id")")"
+  RESPONSE="$response" python3 - <<'PY'
+import json
+import os
+
+response = json.loads(os.environ["RESPONSE"])
+tasks = response["result"]["structuredContent"]["tasks"]
+print(len(tasks))
+PY
+}
+
+latest_workspace_message_id() {
+  local response
+  response="$(call_mcp "list_workspace_messages" "$(json_arg "workspaceId=$workspace_id")")"
+  RESPONSE="$response" python3 - <<'PY'
+import json
+import os
+
+response = json.loads(os.environ["RESPONSE"])
+messages = response["result"]["structuredContent"]["messages"]
+print(messages[0]["id"] if messages else "")
+PY
+}
+
+start_heartbeat_loop() {
+  (
+    while true; do
+      call_mcp "heartbeat_agent_session" "$(json_arg "sessionId=$session_id")" >/dev/null 2>&1 || true
+      sleep 30
+    done
+  ) &
+  heartbeat_pid="$!"
+}
+
+build_runtime_prompt() {
+  local trigger_reason="$1"
+  local assigned_summary_json="$2"
+  local latest_message_id="$3"
+
+  ASSIGNED_SUMMARY="$assigned_summary_json" python3 - "$runtime_prompt" "$role" "$runtime" "$workspace_id" "$session_id" "$agent_id" "$display_name" "$bootstrap_path" "$repo_root" "$trigger_reason" "$latest_message_id" <<'PY'
+import json
+import os
+import sys
+
+(
+    runtime_prompt,
+    role,
+    runtime,
+    workspace_id,
+    session_id,
+    agent_id,
+    display_name,
+    bootstrap_path,
+    repo_root,
+    trigger_reason,
+    latest_message_id,
+) = sys.argv[1:]
+
+summary = json.loads(os.environ["ASSIGNED_SUMMARY"])
+lines = [
+    "# Live Agent Session",
+    "",
+    "You are already registered in Infosphere.",
+    "",
+    f"- role: {role}",
+    f"- runtime: {runtime}",
+    f"- workspaceId: {workspace_id}",
+    f"- sessionId: {session_id}",
+    f"- agentId: {agent_id}",
+    f"- displayName: {display_name}",
+    "",
+    "Operational rules:",
+    f"- use the existing Infosphere session `{session_id}`",
+    "- do not register a second session",
+    f"- use `heartbeat_agent_session` with sessionId `{session_id}` while active",
+    f"- before ending work, call `close_agent_session` with sessionId `{session_id}` only if this wrapper is explicitly being shut down",
+    "- you are intentionally running with local approvals and sandbox bypassed",
+    "- use minimal tokens and do not invent work",
+    "",
+    f"Trigger reason: {trigger_reason}",
+]
+
+if summary["tasks"]:
+    lines.extend(["", "Assigned tasks:"])
+    for task in summary["tasks"]:
+        lines.append(f"- {task['id']}: {task['title']} ({task['stateKey']})")
+
+if latest_message_id:
+    lines.extend(["", f"Latest workspace message id: {latest_message_id}"])
+
+lines.extend(
+    [
+        "",
+        "Reference files:",
+        f"- bootstrap packet: {bootstrap_path}",
+        f"- role prompt: {repo_root}/agents/roles/{role}/prompt.md",
+        f"- role context: {repo_root}/agents/roles/{role}/context.md",
+        f"- shared principles: {repo_root}/agents/shared/principles.md",
+        f"- shared workflow: {repo_root}/agents/shared/workflow.md",
+        f"- shared terminology: {repo_root}/agents/shared/terminology.md",
+        "",
+        "Startup behavior:",
+        "- first inspect relevant workspace messages and your assigned tasks",
+        "- if you do not have actionable work, exit quickly and let the supervisor keep polling",
+        "- read the referenced files from disk only when needed",
+    ]
+)
+
+with open(runtime_prompt, "w", encoding="utf-8") as handle:
+    handle.write("\n".join(lines) + "\n")
+PY
+}
 
 cleanup() {
   set +e
+  if [[ -n "${heartbeat_pid:-}" ]]; then
+    kill "$heartbeat_pid" >/dev/null 2>&1 || true
+  fi
   if [[ -n "${session_id:-}" ]]; then
     close_args="$(python3 - "$session_id" <<'PY'
 import json
@@ -164,44 +339,6 @@ PY
 
 trap cleanup EXIT INT TERM
 
-cat > "$runtime_prompt" <<EOF
-# Runtime Session Context
-
-You are already registered in Infosphere.
-
-- role: $role
-- runtime: $runtime
-- workspaceId: $workspace_id
-- sessionId: $session_id
-- agentId: $agent_id
-- displayName: $display_name
-
-Operational rules for this live session:
-- use the existing Infosphere session above
-- do not register a second session
-- use heartbeat_agent_session with sessionId \`$session_id\` while you are active
-- before ending work, call close_agent_session with sessionId \`$session_id\`
-- if there are no available tasks or actionable messages, stay idle and do not invent work
-- you are running with local approvals and sandbox bypassed intentionally
-- you are allowed to edit code, run builds, run tests, restart containers, and perform normal local development operations needed to complete work
-
-Startup guidance:
-- first inspect workspace messages
-- then inspect available tasks
-- if there is no actionable work, remain idle rather than inventing tasks
-- consult the referenced role files when you need more detailed guidance
-
-Reference files:
-- bootstrap packet: $bootstrap_path
-- role prompt: $repo_root/agents/roles/$role/prompt.md
-- role context: $repo_root/agents/roles/$role/context.md
-- shared principles: $repo_root/agents/shared/principles.md
-- shared workflow: $repo_root/agents/shared/workflow.md
-- shared terminology: $repo_root/agents/shared/terminology.md
-
-Do not ask for those files to be pasted up front. Read them from disk only if needed.
-EOF
-
 codex mcp remove "$mcp_name" >/dev/null 2>&1 || true
 codex mcp add "$mcp_name" \
   --env "INFOSPHERE_API_BASE_URL=$api_base_url" \
@@ -210,15 +347,71 @@ codex mcp add "$mcp_name" \
   dotnet run --project "$repo_root/src/Infosphere.Mcp/Infosphere.Mcp.csproj" >/dev/null
 
 clear
-echo "Bootstrapped agent session."
+echo "Bootstrapped agent supervisor."
 echo "Role: $role"
 echo "Runtime: $runtime"
 echo "Workspace ID: $workspace_id"
 echo "Session ID: $session_id"
 echo "Bootstrap packet: $bootstrap_path"
-echo "Runtime prompt: $runtime_prompt"
+echo "State file: $state_file"
 echo
-echo "Launching Codex with Infosphere MCP attached..."
+echo "Supervisor behavior:"
+echo "- keeps the session active"
+echo "- heartbeats every 30 seconds"
+echo "- polls Infosphere for work"
+echo "- only launches Codex when there is actionable work"
 echo
 
-codex --dangerously-bypass-approvals-and-sandbox "$(cat "$runtime_prompt")"
+last_seen_message_id="$(latest_workspace_message_id)"
+printf 'LAST_SEEN_MESSAGE_ID=%q\n' "$last_seen_message_id" > "$state_file"
+
+start_heartbeat_loop
+
+while true; do
+  source "$state_file"
+
+  assigned_summary="$(assigned_tasks_summary)"
+  assigned_count="$(ASSIGNED_SUMMARY="$assigned_summary" python3 - <<'PY'
+import json
+import os
+print(json.loads(os.environ["ASSIGNED_SUMMARY"])["count"])
+PY
+)"
+
+  trigger_reason=""
+  latest_message_id=""
+
+  if [[ "$role" == "coordinator" ]]; then
+    available_count="$(available_tasks_count)"
+    current_latest_message_id="$(latest_workspace_message_id)"
+    if [[ -n "$current_latest_message_id" && "$current_latest_message_id" != "${LAST_SEEN_MESSAGE_ID:-}" ]]; then
+      trigger_reason="new workspace message"
+      latest_message_id="$current_latest_message_id"
+      printf 'LAST_SEEN_MESSAGE_ID=%q\n' "$current_latest_message_id" > "$state_file"
+    elif [[ "$available_count" -gt 0 ]]; then
+      trigger_reason="available tasks exist"
+    elif [[ "$assigned_count" -gt 0 ]]; then
+      trigger_reason="assigned tasks exist"
+    fi
+  else
+    if [[ "$assigned_count" -gt 0 ]]; then
+      trigger_reason="assigned tasks exist"
+    fi
+  fi
+
+  if [[ -n "$trigger_reason" ]]; then
+    build_runtime_prompt "$trigger_reason" "$assigned_summary" "$latest_message_id"
+    clear
+    echo "Launching Codex for $session_name"
+    echo "Reason: $trigger_reason"
+    echo "Session ID: $session_id"
+    echo "Runtime prompt: $runtime_prompt"
+    echo
+    codex --dangerously-bypass-approvals-and-sandbox "$(cat "$runtime_prompt")" || true
+    echo
+    echo "Codex exited. Supervisor will continue polling."
+    sleep 5
+  else
+    sleep 15
+  fi
+done

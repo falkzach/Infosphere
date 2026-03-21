@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16.9
+    container_name: infosphere_postgresql_db
+    hostname: postgres
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_DB: infosphere
+      POSTGRES_USER: master
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U master -d infosphere"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  migrate:
+    build:
+      context: .
+      dockerfile: src/Infosphere.Postgresql.Db/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: Host=db;Port=5432;Database=infosphere;Username=master;Password=secret
+    command: ["migrate"]
+    restart: "no"
+  api:
+    build:
+      context: .
+      dockerfile: src/Infosphere.Api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: Host=db;Port=5432;Database=infosphere;Username=master;Password=secret
+      Cors__AllowedOrigins__0: http://127.0.0.1:5081
+      Cors__AllowedOrigins__1: http://localhost:5081
+    ports:
+      - "5080:8080"
+  web:
+    build:
+      context: .
+      dockerfile: src/Infosphere.Web/Dockerfile
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      API_BASE_URL: http://localhost:5080
+    ports:
+      - "5081:80"
+
+volumes:
+  postgres-data:

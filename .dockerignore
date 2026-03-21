@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+.git/
+.gitignore
+src/Infosphere.Web/node_modules/
+src/Infosphere.Web/dist/
+postgres-data/
+README.md

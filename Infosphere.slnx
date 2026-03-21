@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Infosphere.Api/Infosphere.Api.csproj" />
+    <Project Path="src/Infosphere.Core/Infosphere.Core.csproj" />
+    <Project Path="src/Infosphere.Mcp/Infosphere.Mcp.csproj" />
+    <Project Path="src/Infosphere.Postgresql.Db/Infosphere.Postgresql.Db.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Infosphere.Core.Tests/Infosphere.Core.Tests.csproj" />
+    <Project Path="tests/Infosphere.Mcp.Tests/Infosphere.Mcp.Tests.csproj" />
+  </Folder>
+</Solution>

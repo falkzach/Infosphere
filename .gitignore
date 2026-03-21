@@ -1,0 +1,32 @@
+# Local environment
+.env
+
+# IDE state
+.vs/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# .NET build output
+**/bin/
+**/obj/
+
+# Test and coverage output
+TestResults/
+coverage/
+coverage*.json
+coverage*.xml
+
+# Package artifacts
+artifacts/
+*.nupkg
+*.snupkg
+
+# Frontend build output
+src/Infosphere.Web/node_modules/
+src/Infosphere.Web/dist/
+src/Infosphere.Web/*.tsbuildinfo
+src/Infosphere.Web/vite.config.js
+src/Infosphere.Web/vite.config.d.ts

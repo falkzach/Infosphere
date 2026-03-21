@@ -194,7 +194,7 @@ codex mcp add "$mcp_name" \
   --env "INFOSPHERE_API_BASE_URL=$api_base_url" \
   --env "DOTNET_CLI_HOME=/tmp" \
   -- \
-  dotnet run --project "$repo_root/src/Infosphere.Mcp/Infosphere.Mcp.csproj" --no-build >/dev/null
+  dotnet run --project "$repo_root/src/Infosphere.Mcp/Infosphere.Mcp.csproj" >/dev/null
 
 clear
 echo "Bootstrapped agent session."

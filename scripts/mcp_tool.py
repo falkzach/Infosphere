@@ -38,7 +38,7 @@ def main() -> int:
     env.setdefault("DOTNET_CLI_HOME", "/tmp")
 
     result = subprocess.run(
-        ["dotnet", "run", "--project", args.project, "--no-build"],
+        ["dotnet", "run", "--project", args.project],
         input=framed,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

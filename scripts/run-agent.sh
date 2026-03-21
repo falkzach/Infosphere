@@ -424,7 +424,7 @@ PY
     echo "Session ID: $session_id"
     echo "Runtime prompt: $runtime_prompt"
     echo
-    codex --dangerously-bypass-approvals-and-sandbox "$(cat "$runtime_prompt")" || true
+    codex exec --dangerously-bypass-approvals-and-sandbox < "$runtime_prompt" || true
     echo
     echo "Codex exited. Supervisor will continue polling."
     sleep 5

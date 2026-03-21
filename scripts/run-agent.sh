@@ -182,6 +182,8 @@ Operational rules for this live session:
 - use heartbeat_agent_session with sessionId \`$session_id\` while you are active
 - before ending work, call close_agent_session with sessionId \`$session_id\`
 - if there are no available tasks or actionable messages, stay idle and do not invent work
+- you are running with local approvals and sandbox bypassed intentionally
+- you are allowed to edit code, run builds, run tests, restart containers, and perform normal local development operations needed to complete work
 
 Repo bootstrap packet follows.
 
@@ -208,4 +210,4 @@ echo
 echo "Launching Codex with Infosphere MCP attached..."
 echo
 
-codex --full-auto "$(cat "$runtime_prompt")"
+codex --dangerously-bypass-approvals-and-sandbox "$(cat "$runtime_prompt")"

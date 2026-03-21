@@ -34,6 +34,19 @@ Each active agent should get:
 - its own branch unless there is a strong reason not to
 - its own local runtime/process context
 
+## Authority Model
+
+Bootstrapped local agents are expected to run with enough authority to do normal development work in their dedicated worktrees.
+
+That includes:
+- editing code
+- running builds and tests
+- running migration and generation workflows
+- restarting local containers and services
+- performing other ordinary local development operations required to complete assigned tasks
+
+Do not bootstrap agents into an approval mode that blocks routine work unless there is a specific reason to constrain that session.
+
 A simple pattern is:
 
 ```bash

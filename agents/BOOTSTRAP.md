@@ -9,6 +9,8 @@ The easiest way to bootstrap agents onto Infosphere is:
 
 This keeps the role definition file-based and predictable while using Infosphere for live shared state.
 
+The intended local mode is unattended execution inside a dedicated worktree. Agents should not be blocked on approvals for ordinary development actions like editing files, building, testing, or restarting local containers.
+
 ## Prerequisites
 
 Start the local stack:
@@ -98,6 +100,7 @@ Example:
 - generate the startup packet
 - provide it as the initial repo/task context from that agent's worktree
 - configure the MCP command to run `Infosphere.Mcp`
+- run with approvals and sandbox bypassed for normal local development work in that dedicated worktree
 
 ### Claude / Gemini / Antigravity
 

@@ -154,6 +154,7 @@ runtime_prompt="$(mktemp "/tmp/${session_name}-runtime-XXXX.md")"
 mcp_name="infosphere-${session_name}"
 state_dir="/tmp/infosphere-agent-state"
 state_file="$state_dir/${session_name}.env"
+codex_home="$state_dir/${session_name}-codex-home"
 heartbeat_pid=""
 
 mkdir -p "$state_dir"
@@ -350,18 +351,28 @@ PY
         --arguments-env INFOSPHERE_MCP_ARGS \
         --api-base-url "$api_base_url" >/dev/null 2>&1 || true
   fi
-  codex mcp remove "$mcp_name" >/dev/null 2>&1 || true
   rm -f "$runtime_prompt"
 }
 
 trap cleanup EXIT INT TERM
 
-codex mcp remove "$mcp_name" >/dev/null 2>&1 || true
-codex mcp add "$mcp_name" \
-  --env "INFOSPHERE_API_BASE_URL=$api_base_url" \
-  --env "DOTNET_CLI_HOME=/tmp" \
-  -- \
-  dotnet run --project "$repo_root/src/Infosphere.Mcp/Infosphere.Mcp.csproj" >/dev/null
+mkdir -p "$codex_home/.codex"
+cp /home/falkzach/.codex/auth.json "$codex_home/.codex/auth.json"
+cat > "$codex_home/.codex/config.toml" <<EOF
+personality = "pragmatic"
+model = "gpt-5.4"
+
+[projects."$repo_root"]
+trust_level = "trusted"
+
+[mcp_servers.$mcp_name]
+command = "dotnet"
+args = ["run", "--project", "$repo_root/src/Infosphere.Mcp/Infosphere.Mcp.csproj"]
+
+[mcp_servers.$mcp_name.env]
+DOTNET_CLI_HOME = "/tmp"
+INFOSPHERE_API_BASE_URL = "$api_base_url"
+EOF
 
 maybe_clear
 echo "Bootstrapped agent supervisor."
@@ -424,7 +435,7 @@ PY
     echo "Session ID: $session_id"
     echo "Runtime prompt: $runtime_prompt"
     echo
-    codex exec --dangerously-bypass-approvals-and-sandbox < "$runtime_prompt" || true
+    HOME="$codex_home" codex exec --dangerously-bypass-approvals-and-sandbox < "$runtime_prompt" || true
     echo
     echo "Codex exited. Supervisor will continue polling."
     sleep 5

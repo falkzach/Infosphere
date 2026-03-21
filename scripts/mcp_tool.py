@@ -10,14 +10,22 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tool", required=True)
     parser.add_argument("--arguments", default="{}")
+    parser.add_argument("--arguments-env")
     parser.add_argument("--api-base-url", default=os.environ.get("INFOSPHERE_API_BASE_URL", "http://localhost:5080"))
     parser.add_argument("--project", default="src/Infosphere.Mcp/Infosphere.Mcp.csproj")
     args = parser.parse_args()
 
+    raw_arguments = args.arguments
+    if args.arguments_env:
+        raw_arguments = os.environ.get(args.arguments_env, "")
+        if not raw_arguments:
+            print(f"Environment variable {args.arguments_env} is not set or empty.", file=sys.stderr)
+            return 2
+
     try:
-        arguments = json.loads(args.arguments)
+        arguments = json.loads(raw_arguments)
     except json.JSONDecodeError as exc:
-        print(f"Invalid JSON for --arguments: {exc}", file=sys.stderr)
+        print(f"Invalid JSON for MCP arguments: {exc}", file=sys.stderr)
         return 2
 
     request = {

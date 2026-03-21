@@ -133,7 +133,13 @@ print(json.dumps(payload))
 PY
 )"
 
-register_response="$(python3 "$repo_root/scripts/mcp_tool.py" --tool register_agent_session --arguments "$register_args" --api-base-url "$api_base_url")"
+register_response="$(
+  INFOSPHERE_MCP_ARGS="$register_args" \
+    python3 "$repo_root/scripts/mcp_tool.py" \
+      --tool register_agent_session \
+      --arguments-env INFOSPHERE_MCP_ARGS \
+      --api-base-url "$api_base_url"
+)"
 session_id="$(REGISTER_RESPONSE="$register_response" python3 - <<'PY'
 import json
 import os
@@ -155,10 +161,11 @@ mkdir -p "$state_dir"
 call_mcp() {
   local tool="$1"
   local arguments_json="${2:-{}}"
-  python3 "$repo_root/scripts/mcp_tool.py" \
-    --tool "$tool" \
-    --arguments "$arguments_json" \
-    --api-base-url "$api_base_url"
+  INFOSPHERE_MCP_ARGS="$arguments_json" \
+    python3 "$repo_root/scripts/mcp_tool.py" \
+      --tool "$tool" \
+      --arguments-env INFOSPHERE_MCP_ARGS \
+      --api-base-url "$api_base_url"
 }
 
 json_arg() {
@@ -331,7 +338,11 @@ import sys
 print(json.dumps({"sessionId": sys.argv[1]}))
 PY
 )"
-    python3 "$repo_root/scripts/mcp_tool.py" --tool close_agent_session --arguments "$close_args" --api-base-url "$api_base_url" >/dev/null 2>&1 || true
+    INFOSPHERE_MCP_ARGS="$close_args" \
+      python3 "$repo_root/scripts/mcp_tool.py" \
+        --tool close_agent_session \
+        --arguments-env INFOSPHERE_MCP_ARGS \
+        --api-base-url "$api_base_url" >/dev/null 2>&1 || true
   fi
   codex mcp remove "$mcp_name" >/dev/null 2>&1 || true
   rm -f "$runtime_prompt"

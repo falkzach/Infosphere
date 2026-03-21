@@ -24,6 +24,26 @@ All agents working here should follow these baseline rules:
 - prefer session-based task claims over freeform agent identifiers
 - close stale or finished sessions explicitly
 - write durable workspace communication as workspace messages or context entries, not hidden local notes
+- each participating agent should work from its own git worktree
+- do not share one checked-out working directory across multiple active agents
+
+## Worktree Rule
+
+Each active agent should get:
+- its own git worktree
+- its own branch unless there is a strong reason not to
+- its own local runtime/process context
+
+A simple pattern is:
+
+```bash
+git worktree add ../Infosphere-coordinator -b agent/coordinator main
+git worktree add ../Infosphere-backend -b agent/backend main
+git worktree add ../Infosphere-frontend -b agent/frontend main
+git worktree add ../Infosphere-ux -b agent/ux main
+```
+
+This reduces conflicting edits, confused file state, and accidental cross-agent interference.
 
 ## Project Map
 

@@ -3,8 +3,9 @@
 The easiest way to bootstrap agents onto Infosphere is:
 
 1. start the stack
-2. generate a role-specific startup packet
-3. launch the agent runtime with that packet and the local MCP command
+2. create a dedicated git worktree for each agent
+3. generate a role-specific startup packet
+4. launch the agent runtime from that worktree with the packet and the local MCP command
 
 This keeps the role definition file-based and predictable while using Infosphere for live shared state.
 
@@ -19,6 +20,25 @@ docker compose up -d --build
 The normal local endpoints are:
 - API: `http://localhost:5080`
 - Web: `http://localhost:5081`
+
+## Per-Agent Worktrees
+
+Each active agent should run in its own git worktree.
+
+Recommended pattern:
+
+```bash
+git worktree add ../Infosphere-coordinator -b agent/coordinator main
+git worktree add ../Infosphere-backend -b agent/backend main
+git worktree add ../Infosphere-frontend -b agent/frontend main
+git worktree add ../Infosphere-ux -b agent/ux main
+```
+
+Why:
+- avoids overlapping edits in one working directory
+- makes branch ownership clearer
+- reduces accidental context leakage between agents
+- makes it easier to inspect or discard one agent's work independently
 
 ## Startup Packet Script
 
@@ -47,6 +67,14 @@ The packet includes:
 - role context
 - MCP connection details
 
+Use [scripts/launch-agents.sh](/home/falkzach/code/Infosphere/scripts/launch-agents.sh) to create all four bootstrap packets and start named `tmux` sessions in the prepared worktrees.
+
+Example:
+
+```bash
+./scripts/launch-agents.sh --runtime codex
+```
+
 ## Supported Runtimes
 
 - `codex`
@@ -68,13 +96,13 @@ The packet includes:
 ### Codex
 
 - generate the startup packet
-- provide it as the initial repo/task context
+- provide it as the initial repo/task context from that agent's worktree
 - configure the MCP command to run `Infosphere.Mcp`
 
 ### Claude / Gemini / Antigravity
 
 - generate the startup packet
-- use it as the system or startup context for the role
+- use it as the system or startup context for the role from that agent's worktree
 - wire the runtime to the local MCP command
 
 ## MCP Command
@@ -104,8 +132,8 @@ DOTNET_CLI_HOME=/tmp dotnet build src/Infosphere.Mcp/Infosphere.Mcp.csproj
 
 1. Start Coordinator
 2. Coordinator reviews workspace messages and available tasks
-3. Start C# Backend Implementor and/or Vite React Frontend Implementor as needed
-4. Start User Experience Manager when product behavior or usability direction needs decisions
+3. Start C# Backend Implementor and/or Vite React Frontend Implementor in their own worktrees as needed
+4. Start User Experience Manager in its own worktree when product behavior or usability direction needs decisions
 
 ## Future Improvement
 

@@ -154,6 +154,8 @@ runtime_prompt="$(mktemp "/tmp/${session_name}-runtime-XXXX.md")"
 mcp_name="infosphere-${session_name}"
 state_dir="/tmp/infosphere-agent-state"
 state_file="$state_dir/${session_name}.env"
+context_image_path="$state_dir/${session_name}-context-image.md"
+context_manifest_path="$state_dir/${session_name}-context-image.json"
 codex_home="$state_dir/${session_name}-codex-home"
 heartbeat_pid=""
 
@@ -254,12 +256,23 @@ start_heartbeat_loop() {
   heartbeat_pid="$!"
 }
 
+refresh_context_image() {
+  bash "$repo_root/scripts/build-context-image.sh" \
+    --role "$role" \
+    --runtime "$runtime" \
+    --repo-root "$repo_root" \
+    --bootstrap-path "$bootstrap_path" \
+    --workspace-id "$workspace_id" \
+    --output-markdown "$context_image_path" \
+    --output-manifest "$context_manifest_path" >/dev/null
+}
+
 build_runtime_prompt() {
   local trigger_reason="$1"
   local assigned_summary_json="$2"
   local latest_message_id="$3"
 
-  ASSIGNED_SUMMARY="$assigned_summary_json" python3 - "$runtime_prompt" "$role" "$runtime" "$workspace_id" "$session_id" "$agent_id" "$display_name" "$bootstrap_path" "$repo_root" "$trigger_reason" "$latest_message_id" <<'PY'
+  ASSIGNED_SUMMARY="$assigned_summary_json" python3 - "$runtime_prompt" "$role" "$runtime" "$workspace_id" "$session_id" "$agent_id" "$display_name" "$context_image_path" "$trigger_reason" "$latest_message_id" <<'PY'
 import json
 import os
 import sys
@@ -272,8 +285,7 @@ import sys
     session_id,
     agent_id,
     display_name,
-    bootstrap_path,
-    repo_root,
+    context_image_path,
     trigger_reason,
     latest_message_id,
 ) = sys.argv[1:]
@@ -313,18 +325,15 @@ if latest_message_id:
 lines.extend(
     [
         "",
-        "Reference files:",
-        f"- bootstrap packet: {bootstrap_path}",
-        f"- role prompt: {repo_root}/agents/roles/{role}/prompt.md",
-        f"- role context: {repo_root}/agents/roles/{role}/context.md",
-        f"- shared principles: {repo_root}/agents/shared/principles.md",
-        f"- shared workflow: {repo_root}/agents/shared/workflow.md",
-        f"- shared terminology: {repo_root}/agents/shared/terminology.md",
+        "Context image:",
+        f"- cached startup baseline: {context_image_path}",
         "",
         "Startup behavior:",
-        "- first inspect relevant workspace messages and your assigned tasks",
+        "- first read the cached startup baseline file above",
+        "- then inspect only the relevant workspace messages and your assigned tasks",
         "- if you do not have actionable work, exit quickly and let the supervisor keep polling",
-        "- read the referenced files from disk only when needed",
+        "- prefer the cached startup baseline over re-reading many repo files",
+        "- use MCP for live deltas, not for reconstructing startup context",
     ]
 )
 
@@ -374,6 +383,8 @@ DOTNET_CLI_HOME = "/tmp"
 INFOSPHERE_API_BASE_URL = "$api_base_url"
 EOF
 
+refresh_context_image
+
 maybe_clear
 echo "Bootstrapped agent supervisor."
 echo "Role: $role"
@@ -381,6 +392,7 @@ echo "Runtime: $runtime"
 echo "Workspace ID: $workspace_id"
 echo "Session ID: $session_id"
 echo "Bootstrap packet: $bootstrap_path"
+echo "Context image: $context_image_path"
 echo "State file: $state_file"
 echo
 echo "Supervisor behavior:"
@@ -428,12 +440,14 @@ PY
   fi
 
   if [[ -n "$trigger_reason" ]]; then
+    refresh_context_image
     build_runtime_prompt "$trigger_reason" "$assigned_summary" "$latest_message_id"
     maybe_clear
     echo "Launching Codex for $session_name"
     echo "Reason: $trigger_reason"
     echo "Session ID: $session_id"
     echo "Runtime prompt: $runtime_prompt"
+    echo "Context image: $context_image_path"
     echo
     HOME="$codex_home" codex exec --dangerously-bypass-approvals-and-sandbox < "$runtime_prompt" || true
     echo

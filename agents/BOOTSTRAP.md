@@ -69,6 +69,26 @@ The packet includes:
 - role context
 - MCP connection details
 
+## Context Images
+
+Bootstrapped agents now use a cached `context image` as their startup baseline.
+
+The context image is a generated file that bundles:
+- runtime overlay
+- shared agent guidance
+- role prompt and role context
+- a compact repo snapshot
+- bootstrap metadata
+
+The supervisor refreshes this cache before agent wake-ups and then points the runtime at the
+cached image first. The intent is:
+- less repeated prompt assembly
+- less repeated disk scanning
+- smaller wake-time token usage
+- MCP used mainly for live deltas rather than startup reconstruction
+
+The current builder is [scripts/build-context-image.sh](/home/falkzach/code/Infosphere/scripts/build-context-image.sh).
+
 Use [scripts/launch-agents.sh](/home/falkzach/code/Infosphere/scripts/launch-agents.sh) to create all four bootstrap packets and start named `tmux` sessions in the prepared worktrees.
 
 Example:
@@ -98,6 +118,7 @@ Example:
 ### Codex
 
 - generate the startup packet
+- let the supervisor generate and refresh the cached context image
 - provide it as the initial repo/task context from that agent's worktree
 - configure the MCP command to run `Infosphere.Mcp`
 - run with approvals and sandbox bypassed for normal local development work in that dedicated worktree
@@ -144,6 +165,6 @@ The next useful step would be a runtime-specific launcher layer that:
 - creates an agent session automatically
 - writes a bootstrap workspace message
 - records the selected role in session metadata
-- launches the runtime with the generated packet
+- launches the runtime with the generated packet and cached context image
 
 This document and script are the lowest-friction first step.

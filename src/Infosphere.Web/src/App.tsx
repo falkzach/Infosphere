@@ -25,6 +25,10 @@ export function App() {
     () => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? null,
     [selectedWorkspaceId, workspaces],
   );
+  const activeSessions = useMemo(
+    () => sessions.filter((session) => session.state.key === "active"),
+    [sessions],
+  );
 
   async function refresh() {
     try {
@@ -203,8 +207,8 @@ export function App() {
           ))}
         </Panel>
 
-        <Panel title="Agent Sessions" count={sessions.length}>
-          {sessions.length === 0 ? <EmptyState text="No agent sessions yet." /> : sessions.map((session) => (
+        <Panel title="Agent Sessions" count={activeSessions.length}>
+          {activeSessions.length === 0 ? <EmptyState text="No active agent sessions." /> : activeSessions.map((session) => (
             <article className="item" key={session.id}>
               <div className="item-head">
                 <strong>{session.displayName}</strong>

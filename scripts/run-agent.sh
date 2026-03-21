@@ -158,6 +158,12 @@ heartbeat_pid=""
 
 mkdir -p "$state_dir"
 
+maybe_clear() {
+  if [[ -n "${TERM:-}" ]] && command -v clear >/dev/null 2>&1; then
+    clear || true
+  fi
+}
+
 call_mcp() {
   local tool="$1"
   local arguments_json="${2:-{}}"
@@ -357,7 +363,7 @@ codex mcp add "$mcp_name" \
   -- \
   dotnet run --project "$repo_root/src/Infosphere.Mcp/Infosphere.Mcp.csproj" >/dev/null
 
-clear
+maybe_clear
 echo "Bootstrapped agent supervisor."
 echo "Role: $role"
 echo "Runtime: $runtime"
@@ -412,7 +418,7 @@ PY
 
   if [[ -n "$trigger_reason" ]]; then
     build_runtime_prompt "$trigger_reason" "$assigned_summary" "$latest_message_id"
-    clear
+    maybe_clear
     echo "Launching Codex for $session_name"
     echo "Reason: $trigger_reason"
     echo "Session ID: $session_id"

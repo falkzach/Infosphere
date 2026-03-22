@@ -503,9 +503,13 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("title", title);
         command.Parameters.AddWithValue("isRequired", isRequired);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        await reader.ReadAsync(cancellationToken);
-        var item = MapTaskChecklistItem(reader);
+        TaskChecklistItemDto item;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            await reader.ReadAsync(cancellationToken);
+            item = MapTaskChecklistItem(reader);
+        }
+
         await transaction.CommitAsync(cancellationToken);
         return item;
     }
@@ -543,14 +547,21 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("isCompleted", isCompleted);
         command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+        TaskChecklistItemDto? item = null;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                item = MapTaskChecklistItem(reader);
+            }
+        }
+
+        if (item is null)
         {
             await transaction.RollbackAsync(cancellationToken);
             return null;
         }
 
-        var item = MapTaskChecklistItem(reader);
         await transaction.CommitAsync(cancellationToken);
         return item;
     }
@@ -601,9 +612,13 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("summary", summary);
         command.Parameters.AddWithValue("details", details ?? EmptyJson);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        await reader.ReadAsync(cancellationToken);
-        var update = MapTaskUpdate(reader);
+        TaskUpdateDto update;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            await reader.ReadAsync(cancellationToken);
+            update = MapTaskUpdate(reader);
+        }
+
         await transaction.CommitAsync(cancellationToken);
         return update;
     }
@@ -657,9 +672,13 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("value", value);
         command.Parameters.AddWithValue("metadata", metadata ?? EmptyJson);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        await reader.ReadAsync(cancellationToken);
-        var artifact = MapTaskArtifact(reader);
+        TaskArtifactDto artifact;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            await reader.ReadAsync(cancellationToken);
+            artifact = MapTaskArtifact(reader);
+        }
+
         await transaction.CommitAsync(cancellationToken);
         return artifact;
     }

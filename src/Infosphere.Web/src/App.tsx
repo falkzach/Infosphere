@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   addTaskChecklistItem,
@@ -18,22 +18,78 @@ import {
 } from "./api";
 import type { AgentSession, Task, TaskChecklistItem, TaskExecution, Workspace, WorkspaceMessage } from "./types";
 
+// --- Selection state machine ---
+
+type SelectionState = {
+  selectedWorkspaceId: string;
+  selectedTaskId: string;
+};
+
+type SelectionAction =
+  | { type: "SELECT_WORKSPACE"; id: string }
+  | { type: "SELECT_TASK"; id: string }
+  | { type: "WORKSPACES_LOADED"; ids: string[] }
+  | { type: "TASKS_LOADED"; ids: string[] };
+
+function selectionReducer(state: SelectionState, action: SelectionAction): SelectionState {
+  switch (action.type) {
+    case "SELECT_WORKSPACE":
+      // User explicitly chose a workspace — clear task selection (tasks are workspace-scoped)
+      return { selectedWorkspaceId: action.id, selectedTaskId: "" };
+    case "SELECT_TASK":
+      return { ...state, selectedTaskId: action.id };
+    case "WORKSPACES_LOADED": {
+      // Preserve current workspace if it still exists; otherwise fall to first
+      const keep = state.selectedWorkspaceId !== "" && action.ids.includes(state.selectedWorkspaceId);
+      return { ...state, selectedWorkspaceId: keep ? state.selectedWorkspaceId : (action.ids[0] ?? "") };
+    }
+    case "TASKS_LOADED": {
+      // Preserve current task if it still exists; otherwise fall to first
+      const keep = state.selectedTaskId !== "" && action.ids.includes(state.selectedTaskId);
+      return { ...state, selectedTaskId: keep ? state.selectedTaskId : (action.ids[0] ?? "") };
+    }
+  }
+}
+
+const LS_WORKSPACE_KEY = "infosphere.selectedWorkspaceId";
+const LS_TASK_KEY = "infosphere.selectedTaskId";
+
+function loadSelectionFromStorage(): SelectionState {
+  return {
+    selectedWorkspaceId: localStorage.getItem(LS_WORKSPACE_KEY) ?? "",
+    selectedTaskId: localStorage.getItem(LS_TASK_KEY) ?? "",
+  };
+}
+
+// --- App ---
+
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState("");
   const [taskExecutions, setTaskExecutions] = useState<Map<string, TaskExecution>>(new Map());
+
+  const [selection, dispatch] = useReducer(selectionReducer, undefined, loadSelectionFromStorage);
+  const { selectedWorkspaceId, selectedTaskId } = selection;
+
+  // Ref so the interval callback always reads current selection without a stale closure
+  const selectionRef = useRef(selection);
+  useEffect(() => { selectionRef.current = selection; }, [selection]);
+
+  // Persist selection to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(LS_WORKSPACE_KEY, selectedWorkspaceId);
+    localStorage.setItem(LS_TASK_KEY, selectedTaskId);
+  }, [selectedWorkspaceId, selectedTaskId]);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const [status, setStatus] = useState("Loading...");
 
   const selectedWorkspace = useMemo(
-    () => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? null,
+    () => workspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
     [selectedWorkspaceId, workspaces],
   );
   const selectedTask = useMemo(
-    () => tasks.find((task) => task.id === selectedTaskId) ?? null,
+    () => tasks.find((t) => t.id === selectedTaskId) ?? null,
     [selectedTaskId, tasks],
   );
   const taskExecution = taskExecutions.get(selectedTaskId) ?? null;
@@ -71,16 +127,17 @@ export function App() {
       const nextWorkspaces = await listWorkspaces();
       setWorkspaces(nextWorkspaces);
 
+      // Read selection from ref (always current, avoids stale interval closure).
+      // Then dispatch to keep React state in sync — reducer applies the same logic.
+      const currentWorkspaceId = selectionRef.current.selectedWorkspaceId;
       const activeWorkspaceId =
-        selectedWorkspaceId && nextWorkspaces.some((workspace) => workspace.id === selectedWorkspaceId)
-          ? selectedWorkspaceId
+        currentWorkspaceId !== "" && nextWorkspaces.some((w) => w.id === currentWorkspaceId)
+          ? currentWorkspaceId
           : nextWorkspaces[0]?.id ?? "";
-
-      setSelectedWorkspaceId(activeWorkspaceId);
+      dispatch({ type: "WORKSPACES_LOADED", ids: nextWorkspaces.map((w) => w.id) });
 
       if (!activeWorkspaceId) {
         setTasks([]);
-        setSelectedTaskId("");
         setTaskExecutions(new Map());
         setSessions([]);
         setMessages([]);
@@ -98,12 +155,12 @@ export function App() {
       setSessions(nextSessions);
       setMessages(nextMessages);
 
+      const currentTaskId = selectionRef.current.selectedTaskId;
       const activeTaskId =
-        selectedTaskId && nextTasks.some((task) => task.id === selectedTaskId)
-          ? selectedTaskId
+        currentTaskId !== "" && nextTasks.some((t) => t.id === currentTaskId)
+          ? currentTaskId
           : nextTasks[0]?.id ?? "";
-
-      setSelectedTaskId(activeTaskId);
+      dispatch({ type: "TASKS_LOADED", ids: nextTasks.map((t) => t.id) });
 
       // Fetch execution for all tasks so checklist items are visible in the list view
       if (nextTasks.length > 0) {
@@ -245,7 +302,7 @@ export function App() {
           <select
             id="workspaceSelect"
             value={selectedWorkspaceId}
-            onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+            onChange={(event) => dispatch({ type: "SELECT_WORKSPACE", id: event.target.value })}
           >
             {workspaces.map((workspace) => (
               <option key={workspace.id} value={workspace.id}>
@@ -306,7 +363,7 @@ export function App() {
               className={`item item-button${task.id === selectedTaskId ? " is-selected" : ""}`}
               key={task.id}
               onClick={() => {
-                setSelectedTaskId(task.id);
+                dispatch({ type: "SELECT_TASK", id: task.id });
                 void refreshTaskExecution(task.id);
               }}
             >

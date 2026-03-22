@@ -338,7 +338,7 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         {
             command.Parameters.AddWithValue("taskId", taskId);
             command.Parameters.AddWithValue("stateId", stateId);
-            command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
+            command.Parameters.Add(new NpgsqlParameter<Guid?>("sessionId", NpgsqlTypes.NpgsqlDbType.Uuid) { TypedValue = sessionId });
             command.Parameters.AddWithValue("clearAssignment", clearsAssignment);
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);

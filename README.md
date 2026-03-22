@@ -10,6 +10,22 @@ The current shape is:
 
 The design goal is agent-agnostic collaboration. Agents should not coordinate through ad hoc markdown files when the workflow needs durable state, concurrent writes, shared task ownership, and queryable memory.
 
+## Runtime Model
+
+Infosphere now supports a lightweight multi-agent runtime loop built around:
+- dedicated git worktrees per agent
+- a stdio MCP adapter over the API
+- supervisor-driven bootstrapping for local Codex agents
+- cached context images to avoid rebuilding startup context on every wake
+- low-token polling so agents sleep until there is actionable work
+
+The intended local agent topology is:
+- 1 coordinator
+- 3 implementors
+- 1 user experience manager
+
+Each active agent runs in its own worktree and its own `tmux` session.
+
 ## Architecture
 
 ### Data
@@ -20,7 +36,7 @@ The database is split into schemas by workload:
 - `catalog`
   - durable metadata such as brain profiles and workspaces
 - `coordination`
-  - hot operational state such as tasks, task states, agent sessions, agent session states, and heartbeat history
+  - hot operational state such as tasks, task states, task checklist items, task updates, task artifacts, agent sessions, agent session states, and heartbeat history
 - `memory`
   - larger context and append-only communication such as context entries and workspace messages
 
@@ -58,6 +74,10 @@ State machines use integer-backed lookup tables so hot rows stay narrow while st
 The API currently supports:
 - workspaces
 - tasks
+- task execution details
+  - checklist items
+  - structured task updates
+  - task artifacts
 - agent sessions
 - workspace messages
 - health and readiness probes
@@ -67,8 +87,16 @@ The MCP currently exposes:
 - `register_agent_session`
 - `heartbeat_agent_session`
 - `list_tasks`
+- `list_available_tasks`
+- `create_task`
 - `claim_task`
 - `transition_task_state`
+- `close_agent_session`
+- `get_task_execution`
+- `add_task_checklist_item`
+- `complete_task_checklist_item`
+- `post_task_update`
+- `add_task_artifact`
 - `list_workspace_messages`
 - `post_workspace_message`
 
@@ -82,10 +110,83 @@ Start the full stack:
 docker compose up -d --build
 ```
 
+Reset bootstrapped agent runtime state if needed:
+
+```bash
+bash scripts/close-agent-sessions.sh --tmux
+```
+
 Services:
 - API: `http://localhost:5080`
 - Web: `http://localhost:5081`
 - Postgres: `localhost:15432`
+
+### Agent bootstrap
+
+Bootstrapped local agents are launched through supervisor scripts rather than by hand-assembling prompts each time.
+
+Important scripts:
+- [scripts/bootstrap-agent.sh](/home/falkzach/code/Infosphere/scripts/bootstrap-agent.sh)
+  - generates a role-specific bootstrap packet
+- [scripts/build-context-image.sh](/home/falkzach/code/Infosphere/scripts/build-context-image.sh)
+  - builds a cached context image and manifest for startup reuse
+- [scripts/launch-agents.sh](/home/falkzach/code/Infosphere/scripts/launch-agents.sh)
+  - launches the standard local agent set in `tmux`
+- [scripts/close-agent-sessions.sh](/home/falkzach/code/Infosphere/scripts/close-agent-sessions.sh)
+  - closes live agent sessions and optionally kills the standard `tmux` sessions
+
+Launch the standard local set:
+
+```bash
+bash scripts/launch-agents.sh --runtime codex
+```
+
+Current standard sessions:
+- `infosphere-coordinator`
+- `infosphere-implementor-1`
+- `infosphere-implementor-2`
+- `infosphere-implementor-3`
+- `infosphere-ux`
+
+### Context image caching
+
+Agent startup uses a cached `context image` so the runtime does not have to reconstruct its full prompt from disk on every wake.
+
+The cached image includes:
+- runtime overlay
+- shared agent guidance
+- role prompt and role context
+- bootstrap metadata
+- a compact repo snapshot
+
+The cache is refreshed before wake-ups and then reused as the baseline prompt context. This reduces:
+- repeated prompt assembly
+- repeated file scanning
+- unnecessary startup tokens
+- wasted work before the first MCP call
+
+### Token minimization and sleep strategy
+
+The local Codex supervisor is designed to keep agents cheap while still “alive”.
+
+Behavior:
+- registers one Infosphere session per agent
+- heartbeats every 30 seconds
+- polls cheaply through MCP
+- keeps the session open while idle
+- only launches the LLM when there is actionable work
+
+Wake conditions:
+- coordinator wakes for new workspace messages, available tasks, or assigned tasks
+- implementors wake only for assigned tasks
+- UX manager wakes only for assigned tasks
+
+After a run:
+- the wrapper keeps polling instead of shutting down immediately
+- the agent should return to idle rather than closing its session
+- the session is only closed when the wrapper is explicitly shut down
+
+This is the current low-token strategy: keep the operational presence alive, but keep the expensive reasoning layer asleep until there is work.
 
 ### Database workflow
 
@@ -174,13 +275,19 @@ Role-specific startup prompts and contexts live under [agents/](/home/falkzach/c
 - [agents/manifest.json](/home/falkzach/code/Infosphere/agents/manifest.json)
 - [agents/BOOTSTRAP.md](/home/falkzach/code/Infosphere/agents/BOOTSTRAP.md)
 - [agents/roles/coordinator/prompt.md](/home/falkzach/code/Infosphere/agents/roles/coordinator/prompt.md)
-- [agents/roles/csharp-backend-implementor/prompt.md](/home/falkzach/code/Infosphere/agents/roles/csharp-backend-implementor/prompt.md)
-- [agents/roles/vite-react-frontend-implementor/prompt.md](/home/falkzach/code/Infosphere/agents/roles/vite-react-frontend-implementor/prompt.md)
+- [agents/roles/implementor/prompt.md](/home/falkzach/code/Infosphere/agents/roles/implementor/prompt.md)
 - [agents/roles/user-experience-manager/prompt.md](/home/falkzach/code/Infosphere/agents/roles/user-experience-manager/prompt.md)
+
+Recommended local worktrees:
+- [/home/falkzach/code/Infosphere-coordinator](/home/falkzach/code/Infosphere-coordinator)
+- [/home/falkzach/code/Infosphere-implementor-1](/home/falkzach/code/Infosphere-implementor-1)
+- [/home/falkzach/code/Infosphere-implementor-2](/home/falkzach/code/Infosphere-implementor-2)
+- [/home/falkzach/code/Infosphere-implementor-3](/home/falkzach/code/Infosphere-implementor-3)
+- [/home/falkzach/code/Infosphere-ux](/home/falkzach/code/Infosphere-ux)
 
 ## Near-Term Work
 
-- add richer task coordination semantics around claims and transitions
 - add context entry API and MCP tools
-- add task availability and task creation tools to MCP
+- harden the agent execution protocol around task completion and PR lifecycle
+- improve supervisor behavior and wake heuristics
 - add scripted multi-agent end-to-end scenarios

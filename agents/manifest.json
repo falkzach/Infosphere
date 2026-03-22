@@ -8,16 +8,10 @@
       "contextPath": "agents/roles/coordinator/context.md"
     },
     {
-      "id": "csharp-backend-implementor",
-      "name": "C# Backend Implementor",
-      "promptPath": "agents/roles/csharp-backend-implementor/prompt.md",
-      "contextPath": "agents/roles/csharp-backend-implementor/context.md"
-    },
-    {
-      "id": "vite-react-frontend-implementor",
-      "name": "Vite React Frontend Implementor",
-      "promptPath": "agents/roles/vite-react-frontend-implementor/prompt.md",
-      "contextPath": "agents/roles/vite-react-frontend-implementor/context.md"
+      "id": "implementor",
+      "name": "Implementor",
+      "promptPath": "agents/roles/implementor/prompt.md",
+      "contextPath": "agents/roles/implementor/context.md"
     },
     {
       "id": "user-experience-manager",

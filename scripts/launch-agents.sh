@@ -9,8 +9,6 @@ Usage:
 Supported runtimes:
   codex
   claude
-  gemini
-  antigravity
 
 Named tmux sessions created:
   infosphere-coordinator
@@ -47,7 +45,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$runtime" in
-  codex|claude|gemini|antigravity)
+  codex|claude)
     ;;
   *)
     echo "Unsupported runtime: $runtime" >&2

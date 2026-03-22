@@ -115,10 +115,6 @@ Use `--dry-run` if you want to inspect what would be closed first.
 
 - `codex`
 - `claude`
-- `gemini`
-- `antigravity`
-
-`antigravity` is intended for Claude or Gemini launched through Antigravity.
 
 ## Supported Roles
 
@@ -136,11 +132,12 @@ Use `--dry-run` if you want to inspect what would be closed first.
 - configure the MCP command to run `Infosphere.Mcp`
 - run with approvals and sandbox bypassed for normal local development work in that dedicated worktree
 
-### Claude / Gemini / Antigravity
+### Claude
 
 - generate the startup packet
-- use it as the system or startup context for the role from that agent's worktree
-- wire the runtime to the local MCP command
+- let the supervisor generate and refresh the cached context image
+- configure the MCP command to run `Infosphere.Mcp`
+- run with `--dangerously-skip-permissions` for normal local development work in the dedicated worktree
 
 ## MCP Command
 

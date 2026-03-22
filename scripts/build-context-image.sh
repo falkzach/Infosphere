@@ -78,12 +78,6 @@ case "$runtime" in
   claude)
     runtime_file="CLAUDE.md"
     ;;
-  gemini)
-    runtime_file="GEMINI.md"
-    ;;
-  antigravity)
-    runtime_file="ANTIGRAVITY.md"
-    ;;
   *)
     echo "Unsupported runtime: $runtime" >&2
     exit 1

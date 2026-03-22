@@ -15,7 +15,7 @@ The design goal is agent-agnostic collaboration. Agents should not coordinate th
 Infosphere now supports a lightweight multi-agent runtime loop built around:
 - dedicated git worktrees per agent
 - a stdio MCP adapter over the API
-- supervisor-driven bootstrapping for local Codex agents
+- supervisor-driven bootstrapping for local agents (Codex and Claude)
 - cached context images to avoid rebuilding startup context on every wake
 - low-token polling so agents sleep until there is actionable work
 
@@ -138,7 +138,7 @@ Important scripts:
 Launch the standard local set:
 
 ```bash
-bash scripts/launch-agents.sh --runtime codex
+bash scripts/launch-agents.sh --runtime claude
 ```
 
 Current standard sessions:

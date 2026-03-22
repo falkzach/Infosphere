@@ -73,10 +73,10 @@ if [[ ! -f "$bootstrap_path" ]]; then
 fi
 
 case "$runtime" in
-  codex)
+  codex|claude)
     ;;
   *)
-    echo "Automated runtime bootstrap is currently implemented for codex only. Requested: $runtime" >&2
+    echo "Automated runtime bootstrap is currently implemented for codex and claude. Requested: $runtime" >&2
     exit 1
     ;;
 esac
@@ -164,6 +164,7 @@ state_file="$state_dir/${session_name}.env"
 context_image_path="$state_dir/${session_name}-context-image.md"
 context_manifest_path="$state_dir/${session_name}-context-image.json"
 codex_home="$state_dir/${session_name}-codex-home"
+mcp_config_path="$state_dir/${session_name}-mcp-config.json"
 heartbeat_pid=""
 
 mkdir -p "$state_dir"
@@ -372,9 +373,10 @@ PY
 
 trap cleanup EXIT INT TERM
 
-mkdir -p "$codex_home/.codex"
-cp /home/falkzach/.codex/auth.json "$codex_home/.codex/auth.json"
-cat > "$codex_home/.codex/config.toml" <<EOF
+if [[ "$runtime" == "codex" ]]; then
+  mkdir -p "$codex_home/.codex"
+  cp /home/falkzach/.codex/auth.json "$codex_home/.codex/auth.json"
+  cat > "$codex_home/.codex/config.toml" <<EOF
 personality = "pragmatic"
 model = "gpt-5.4"
 
@@ -389,6 +391,28 @@ args = ["run", "--project", "$repo_root/src/Infosphere.Mcp/Infosphere.Mcp.csproj
 DOTNET_CLI_HOME = "/tmp"
 INFOSPHERE_API_BASE_URL = "$api_base_url"
 EOF
+elif [[ "$runtime" == "claude" ]]; then
+  python3 - "$mcp_config_path" "$mcp_name" "$repo_root" "$api_base_url" <<'PY'
+import json
+import sys
+
+mcp_config_path, mcp_name, repo_root, api_base_url = sys.argv[1:]
+config = {
+    "mcpServers": {
+        mcp_name: {
+            "command": "dotnet",
+            "args": ["run", "--project", f"{repo_root}/src/Infosphere.Mcp/Infosphere.Mcp.csproj"],
+            "env": {
+                "DOTNET_CLI_HOME": "/tmp",
+                "INFOSPHERE_API_BASE_URL": api_base_url,
+            },
+        }
+    }
+}
+with open(mcp_config_path, "w", encoding="utf-8") as f:
+    json.dump(config, f, indent=2)
+PY
+fi
 
 refresh_context_image
 
@@ -406,11 +430,15 @@ echo "Supervisor behavior:"
 echo "- keeps the session active"
 echo "- heartbeats every 30 seconds"
 echo "- polls Infosphere for work"
-echo "- only launches Codex when there is actionable work"
+echo "- only launches $runtime when there is actionable work"
 echo
 
 last_seen_message_id="$(latest_workspace_message_id)"
-printf 'LAST_SEEN_MESSAGE_ID=%q\n' "$last_seen_message_id" > "$state_file"
+{
+  printf 'LAST_SEEN_MESSAGE_ID=%q\n' "$last_seen_message_id"
+  printf 'LAST_SEEN_AVAILABLE_COUNT=0\n'
+  printf 'LAST_SEEN_ASSIGNED_COUNT=0\n'
+} > "$state_file"
 
 start_heartbeat_loop
 
@@ -427,38 +455,53 @@ PY
 
   trigger_reason=""
   latest_message_id=""
+  current_latest_message_id="${LAST_SEEN_MESSAGE_ID:-}"
+  current_available_count=0
 
   if [[ "$role" == "coordinator" ]]; then
-    available_count="$(available_tasks_count)"
+    current_available_count="$(available_tasks_count)"
     current_latest_message_id="$(latest_workspace_message_id)"
     if [[ -n "$current_latest_message_id" && "$current_latest_message_id" != "${LAST_SEEN_MESSAGE_ID:-}" ]]; then
       trigger_reason="new workspace message"
       latest_message_id="$current_latest_message_id"
-      printf 'LAST_SEEN_MESSAGE_ID=%q\n' "$current_latest_message_id" > "$state_file"
-    elif [[ "$available_count" -gt 0 ]]; then
-      trigger_reason="available tasks exist"
-    elif [[ "$assigned_count" -gt 0 ]]; then
-      trigger_reason="assigned tasks exist"
+    elif [[ "$current_available_count" -gt "${LAST_SEEN_AVAILABLE_COUNT:-0}" ]]; then
+      trigger_reason="new available tasks"
+    elif [[ "$assigned_count" -gt "${LAST_SEEN_ASSIGNED_COUNT:-0}" ]]; then
+      trigger_reason="new assigned tasks"
     fi
   else
-    if [[ "$assigned_count" -gt 0 ]]; then
-      trigger_reason="assigned tasks exist"
+    if [[ "$assigned_count" -gt "${LAST_SEEN_ASSIGNED_COUNT:-0}" ]]; then
+      trigger_reason="new assigned tasks"
     fi
   fi
+
+  # Update cursors unconditionally so only genuine increases trigger on the next poll
+  {
+    printf 'LAST_SEEN_MESSAGE_ID=%q\n' "$current_latest_message_id"
+    printf 'LAST_SEEN_AVAILABLE_COUNT=%d\n' "$current_available_count"
+    printf 'LAST_SEEN_ASSIGNED_COUNT=%d\n' "$assigned_count"
+  } > "$state_file"
 
   if [[ -n "$trigger_reason" ]]; then
     refresh_context_image
     build_runtime_prompt "$trigger_reason" "$assigned_summary" "$latest_message_id"
     maybe_clear
-    echo "Launching Codex for $session_name"
+    echo "Launching $runtime for $session_name"
     echo "Reason: $trigger_reason"
     echo "Session ID: $session_id"
     echo "Runtime prompt: $runtime_prompt"
     echo "Context image: $context_image_path"
     echo
-    HOME="$codex_home" codex exec --dangerously-bypass-approvals-and-sandbox < "$runtime_prompt" || true
+    if [[ "$runtime" == "codex" ]]; then
+      HOME="$codex_home" codex exec --dangerously-bypass-approvals-and-sandbox < "$runtime_prompt" || true
+    elif [[ "$runtime" == "claude" ]]; then
+      claude --dangerously-skip-permissions --print \
+        --mcp-config "$mcp_config_path" \
+        --strict-mcp-config \
+        < "$runtime_prompt" || true
+    fi
     echo
-    echo "Codex exited. Supervisor will continue polling."
+    echo "$runtime exited. Supervisor will continue polling."
     sleep 5
   else
     sleep 15

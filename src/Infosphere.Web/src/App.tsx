@@ -541,8 +541,9 @@ function FormCard(props: {
         className="stack"
         onSubmit={async (event) => {
           event.preventDefault();
-          await props.onSubmit(new FormData(event.currentTarget));
-          event.currentTarget.reset();
+          const form = event.currentTarget;
+          await props.onSubmit(new FormData(form));
+          form.reset();
         }}
       >
         {props.children}

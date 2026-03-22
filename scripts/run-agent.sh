@@ -392,11 +392,11 @@ DOTNET_CLI_HOME = "/tmp"
 INFOSPHERE_API_BASE_URL = "$api_base_url"
 EOF
 elif [[ "$runtime" == "claude" ]]; then
-  python3 - "$mcp_config_path" "$mcp_name" "$repo_root" "$api_base_url" <<'PY'
+  python3 - "$mcp_config_path" "$mcp_name" "$repo_root" "$api_base_url" "$role" <<'PY'
 import json
 import sys
 
-mcp_config_path, mcp_name, repo_root, api_base_url = sys.argv[1:]
+mcp_config_path, mcp_name, repo_root, api_base_url, role = sys.argv[1:]
 config = {
     "mcpServers": {
         mcp_name: {
@@ -409,6 +409,11 @@ config = {
         }
     }
 }
+if role == "user-experience-manager":
+    config["mcpServers"]["playwright"] = {
+        "command": "npx",
+        "args": ["@playwright/mcp", "--browser", "chrome"],
+    }
 with open(mcp_config_path, "w", encoding="utf-8") as f:
     json.dump(config, f, indent=2)
 PY

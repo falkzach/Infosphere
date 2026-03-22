@@ -113,7 +113,7 @@ docker compose up -d --build
 Reset bootstrapped agent runtime state if needed:
 
 ```bash
-bash scripts/close-agent-sessions.sh --tmux
+bash scripts/reset.sh
 ```
 
 Services:
@@ -126,14 +126,20 @@ Services:
 Bootstrapped local agents are launched through supervisor scripts rather than by hand-assembling prompts each time.
 
 Important scripts:
+- [scripts/setup-worktrees.sh](/home/falkzach/code/Infosphere/scripts/setup-worktrees.sh)
+  - creates the five standard agent git worktrees from `main`
 - [scripts/bootstrap-agent.sh](/home/falkzach/code/Infosphere/scripts/bootstrap-agent.sh)
   - generates a role-specific bootstrap packet
 - [scripts/build-context-image.sh](/home/falkzach/code/Infosphere/scripts/build-context-image.sh)
   - builds a cached context image and manifest for startup reuse
 - [scripts/launch-agents.sh](/home/falkzach/code/Infosphere/scripts/launch-agents.sh)
   - launches the standard local agent set in `tmux`
+- [scripts/agent-status.sh](/home/falkzach/code/Infosphere/scripts/agent-status.sh)
+  - quick health check: tmux session state, open DB sessions, task counts by state
 - [scripts/close-agent-sessions.sh](/home/falkzach/code/Infosphere/scripts/close-agent-sessions.sh)
   - closes live agent sessions and optionally kills the standard `tmux` sessions
+- [scripts/reset.sh](/home/falkzach/code/Infosphere/scripts/reset.sh)
+  - full reset: closes DB sessions, kills `tmux` sessions, clears local agent state
 
 Launch the standard local set:
 
@@ -167,7 +173,7 @@ The cache is refreshed before wake-ups and then reused as the baseline prompt co
 
 ### Token minimization and sleep strategy
 
-The local Codex supervisor is designed to keep agents cheap while still “alive”.
+The supervisor is designed to keep agents cheap while still “alive”.
 
 Behavior:
 - registers one Infosphere session per agent
@@ -213,8 +219,7 @@ dotnet run --project src/Infosphere.Postgresql.Db -- validate
 Validate and regenerate Core models:
 
 ```bash
-DOTNET_CLI_HOME=/tmp DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
-dotnet run --project src/Infosphere.Postgresql.Db -- sync-models
+bash scripts/sync-models.sh
 ```
 
 ## Build And Test
@@ -289,5 +294,4 @@ Recommended local worktrees:
 
 - add context entry API and MCP tools
 - harden the agent execution protocol around task completion and PR lifecycle
-- improve supervisor behavior and wake heuristics
 - add scripted multi-agent end-to-end scenarios

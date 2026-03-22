@@ -53,12 +53,36 @@ case "$runtime" in
     ;;
 esac
 
+known_sessions=(
+  infosphere-coordinator
+  infosphere-implementor-1
+  infosphere-implementor-2
+  infosphere-implementor-3
+  infosphere-ux
+)
+
+if [[ -n "$attach_session" ]]; then
+  valid=false
+  for s in "${known_sessions[@]}"; do
+    if [[ "$attach_session" == "$s" ]]; then
+      valid=true
+      break
+    fi
+  done
+  if [[ "$valid" == "false" ]]; then
+    echo "Unknown session for --attach: $attach_session" >&2
+    echo "Valid sessions: ${known_sessions[*]}" >&2
+    exit 1
+  fi
+fi
+
 if ! command -v tmux >/dev/null 2>&1; then
   echo "tmux is required but was not found in PATH." >&2
   exit 1
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+worktree_base="$(dirname "$repo_root")"
 
 launch_one() {
   local role="$1"
@@ -89,11 +113,11 @@ launch_one() {
   tmux select-window -t "$session_name:agent"
 }
 
-launch_one "coordinator" "infosphere-coordinator" "/home/falkzach/code/Infosphere-coordinator" "/tmp/infosphere-coordinator.md"
-launch_one "implementor" "infosphere-implementor-1" "/home/falkzach/code/Infosphere-implementor-1" "/tmp/infosphere-implementor-1.md"
-launch_one "implementor" "infosphere-implementor-2" "/home/falkzach/code/Infosphere-implementor-2" "/tmp/infosphere-implementor-2.md"
-launch_one "implementor" "infosphere-implementor-3" "/home/falkzach/code/Infosphere-implementor-3" "/tmp/infosphere-implementor-3.md"
-launch_one "user-experience-manager" "infosphere-ux" "/home/falkzach/code/Infosphere-ux" "/tmp/infosphere-ux.md"
+launch_one "coordinator" "infosphere-coordinator" "$worktree_base/Infosphere-coordinator" "/tmp/infosphere-coordinator.md"
+launch_one "implementor" "infosphere-implementor-1" "$worktree_base/Infosphere-implementor-1" "/tmp/infosphere-implementor-1.md"
+launch_one "implementor" "infosphere-implementor-2" "$worktree_base/Infosphere-implementor-2" "/tmp/infosphere-implementor-2.md"
+launch_one "implementor" "infosphere-implementor-3" "$worktree_base/Infosphere-implementor-3" "/tmp/infosphere-implementor-3.md"
+launch_one "user-experience-manager" "infosphere-ux" "$worktree_base/Infosphere-ux" "/tmp/infosphere-ux.md"
 
 cat <<EOF
 Launched tmux sessions:

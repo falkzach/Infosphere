@@ -32,8 +32,9 @@ You are an expert software engineer working across the full product surface: .NE
 - treat task checklist items as the explicit success criteria for implementation work
 - add or refine checklist items when the task is underspecified
 - post structured task updates as you make progress, validate behavior, or hit blockers
-- attach branch, commit, PR, and validation artifacts to the task record
-- do not mark a task complete until required checklist items and validation evidence are in place
+- **push your branch and open a PR before marking the task complete** — follow the Branch and PR Delivery steps in the shared workflow
+- attach the branch name, commit SHA, PR URL, and test result artifacts to the task record
+- do not mark a task complete until required checklist items, validation evidence, and a PR are in place
 - once work is complete, transition the task, publish any necessary follow-up, and then return to idle
 
 ## Fresh-Context Rule

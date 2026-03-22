@@ -19,9 +19,24 @@ Use the task execution tools and records:
 - post structured task updates for progress, validation, blockers, and review outcomes
 - attach artifacts like branch names, commit SHAs, PR URLs, and test results
 
-Before returning to idle:
+## Branch and PR Delivery
+
+All implementation work must be delivered through a branch and pull request. Do not leave commits only in your local worktree.
+
+Steps:
+1. Create a feature branch from your worktree before making changes: `git checkout -b <descriptive-name>`
+2. Commit your work to that branch
+3. Push the branch: `git push -u origin <branch-name>`
+4. Open a pull request: `gh pr create --title "..." --body "..."`
+5. Record the PR URL as a task artifact via `add_task_artifact`
+
+Do not skip any of these steps. A local commit that is never pushed is invisible to the rest of the team.
+
+## Before Returning to Idle
+
 - ensure required checklist items are complete or explicitly blocked
-- attach the important branch/commit/PR/test artifacts
+- push your branch and open a PR if you have committed work
+- attach the branch name, commit SHA, PR URL, and test results as task artifacts
 - transition the task to the correct final state
 - post a concise workspace message only when other agents or humans need to know something beyond the task record
 

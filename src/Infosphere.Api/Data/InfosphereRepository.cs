@@ -168,6 +168,7 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         Guid workspaceId,
         string title,
         int priority,
+        IReadOnlyList<string>? successCriteria,
         CancellationToken cancellationToken)
     {
         const string sql =
@@ -189,15 +190,52 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
 
         var id = Guid.NewGuid();
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("id", id);
-        command.Parameters.AddWithValue("workspaceId", workspaceId);
-        command.Parameters.AddWithValue("title", title);
-        command.Parameters.AddWithValue("priority", priority);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        await reader.ReadAsync(cancellationToken);
-        return MapTask(reader, GetTaskState(1));
+        TaskDto task;
+        await using (var command = new NpgsqlCommand(sql, connection, transaction))
+        {
+            command.Parameters.AddWithValue("id", id);
+            command.Parameters.AddWithValue("workspaceId", workspaceId);
+            command.Parameters.AddWithValue("title", title);
+            command.Parameters.AddWithValue("priority", priority);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            await reader.ReadAsync(cancellationToken);
+            task = MapTask(reader, GetTaskState(1));
+        }
+
+        if (successCriteria is { Count: > 0 })
+        {
+            const string checklistSql =
+                """
+                INSERT INTO coordination.task_checklist_items (
+                    id,
+                    task_id,
+                    ordinal,
+                    title,
+                    is_required)
+                VALUES (
+                    @id,
+                    @taskId,
+                    @ordinal,
+                    @title,
+                    TRUE);
+                """;
+
+            for (var index = 0; index < successCriteria.Count; index++)
+            {
+                await using var checklistCommand = new NpgsqlCommand(checklistSql, connection, transaction);
+                checklistCommand.Parameters.AddWithValue("id", Guid.NewGuid());
+                checklistCommand.Parameters.AddWithValue("taskId", id);
+                checklistCommand.Parameters.AddWithValue("ordinal", index + 1);
+                checklistCommand.Parameters.AddWithValue("title", successCriteria[index]);
+                await checklistCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return task;
     }
 
     public async Task<TaskDto?> ClaimTaskAsync(Guid taskId, Guid sessionId, CancellationToken cancellationToken)
@@ -335,6 +373,295 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
 
         await transaction.CommitAsync(cancellationToken);
         return task;
+    }
+
+    public async Task<TaskExecutionDto?> GetTaskExecutionAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+
+        const string taskExistsSql =
+            """
+            SELECT 1
+            FROM coordination.tasks
+            WHERE id = @taskId;
+            """;
+
+        await using (var existsCommand = new NpgsqlCommand(taskExistsSql, connection))
+        {
+            existsCommand.Parameters.AddWithValue("taskId", taskId);
+            if (await existsCommand.ExecuteScalarAsync(cancellationToken) is null)
+            {
+                return null;
+            }
+        }
+
+        var checklistItems = new List<TaskChecklistItemDto>();
+        const string checklistSql =
+            """
+            SELECT id, task_id, ordinal, title, is_required, is_completed, completed_by_agent_session_id, completed_utc, created_utc, updated_utc
+            FROM coordination.task_checklist_items
+            WHERE task_id = @taskId
+            ORDER BY ordinal ASC;
+            """;
+
+        await using (var checklistCommand = new NpgsqlCommand(checklistSql, connection))
+        {
+            checklistCommand.Parameters.AddWithValue("taskId", taskId);
+            await using var reader = await checklistCommand.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                checklistItems.Add(MapTaskChecklistItem(reader));
+            }
+        }
+
+        var updates = new List<TaskUpdateDto>();
+        const string updatesSql =
+            """
+            SELECT id, task_id, agent_session_id, update_kind, summary, details, created_utc
+            FROM coordination.task_updates
+            WHERE task_id = @taskId
+            ORDER BY created_utc DESC, id DESC;
+            """;
+
+        await using (var updatesCommand = new NpgsqlCommand(updatesSql, connection))
+        {
+            updatesCommand.Parameters.AddWithValue("taskId", taskId);
+            await using var reader = await updatesCommand.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                updates.Add(MapTaskUpdate(reader));
+            }
+        }
+
+        var artifacts = new List<TaskArtifactDto>();
+        const string artifactsSql =
+            """
+            SELECT id, task_id, agent_session_id, artifact_kind, value, metadata, created_utc
+            FROM coordination.task_artifacts
+            WHERE task_id = @taskId
+            ORDER BY created_utc DESC;
+            """;
+
+        await using (var artifactsCommand = new NpgsqlCommand(artifactsSql, connection))
+        {
+            artifactsCommand.Parameters.AddWithValue("taskId", taskId);
+            await using var reader = await artifactsCommand.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                artifacts.Add(MapTaskArtifact(reader));
+            }
+        }
+
+        return new TaskExecutionDto(taskId, checklistItems, updates, artifacts);
+    }
+
+    public async Task<TaskChecklistItemDto?> AddTaskChecklistItemAsync(
+        Guid taskId,
+        string title,
+        bool isRequired,
+        int? ordinal,
+        Guid? sessionId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        if (!await TaskExistsAsync(connection, transaction, taskId, cancellationToken))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
+        if (sessionId is not null)
+        {
+            await TouchSessionAsync(connection, transaction, sessionId.Value, cancellationToken);
+        }
+
+        var nextOrdinal = ordinal ?? await GetNextChecklistOrdinalAsync(connection, transaction, taskId, cancellationToken);
+
+        const string sql =
+            """
+            INSERT INTO coordination.task_checklist_items (
+                id,
+                task_id,
+                ordinal,
+                title,
+                is_required)
+            VALUES (
+                @id,
+                @taskId,
+                @ordinal,
+                @title,
+                @isRequired)
+            RETURNING id, task_id, ordinal, title, is_required, is_completed, completed_by_agent_session_id, completed_utc, created_utc, updated_utc;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("taskId", taskId);
+        command.Parameters.AddWithValue("ordinal", nextOrdinal);
+        command.Parameters.AddWithValue("title", title);
+        command.Parameters.AddWithValue("isRequired", isRequired);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        var item = MapTaskChecklistItem(reader);
+        await transaction.CommitAsync(cancellationToken);
+        return item;
+    }
+
+    public async Task<TaskChecklistItemDto?> CompleteTaskChecklistItemAsync(
+        Guid taskId,
+        Guid checklistItemId,
+        bool isCompleted,
+        Guid? sessionId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        if (sessionId is not null)
+        {
+            await TouchSessionAsync(connection, transaction, sessionId.Value, cancellationToken);
+        }
+
+        const string sql =
+            """
+            UPDATE coordination.task_checklist_items
+            SET is_completed = @isCompleted,
+                completed_by_agent_session_id = CASE WHEN @isCompleted THEN @sessionId ELSE NULL END,
+                completed_utc = CASE WHEN @isCompleted THEN NOW() ELSE NULL END,
+                updated_utc = NOW()
+            WHERE id = @checklistItemId
+              AND task_id = @taskId
+            RETURNING id, task_id, ordinal, title, is_required, is_completed, completed_by_agent_session_id, completed_utc, created_utc, updated_utc;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("taskId", taskId);
+        command.Parameters.AddWithValue("checklistItemId", checklistItemId);
+        command.Parameters.AddWithValue("isCompleted", isCompleted);
+        command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
+        var item = MapTaskChecklistItem(reader);
+        await transaction.CommitAsync(cancellationToken);
+        return item;
+    }
+
+    public async Task<TaskUpdateDto?> CreateTaskUpdateAsync(
+        Guid taskId,
+        Guid? sessionId,
+        string updateKind,
+        string summary,
+        JsonDocument? details,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        if (!await TaskExistsAsync(connection, transaction, taskId, cancellationToken))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
+        if (sessionId is not null)
+        {
+            await TouchSessionAsync(connection, transaction, sessionId.Value, cancellationToken);
+        }
+
+        const string sql =
+            """
+            INSERT INTO coordination.task_updates (
+                task_id,
+                agent_session_id,
+                update_kind,
+                summary,
+                details)
+            VALUES (
+                @taskId,
+                @sessionId,
+                @updateKind,
+                @summary,
+                @details)
+            RETURNING id, task_id, agent_session_id, update_kind, summary, details, created_utc;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("taskId", taskId);
+        command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("updateKind", updateKind);
+        command.Parameters.AddWithValue("summary", summary);
+        command.Parameters.AddWithValue("details", details ?? EmptyJson);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        var update = MapTaskUpdate(reader);
+        await transaction.CommitAsync(cancellationToken);
+        return update;
+    }
+
+    public async Task<TaskArtifactDto?> CreateTaskArtifactAsync(
+        Guid taskId,
+        Guid? sessionId,
+        string artifactKind,
+        string value,
+        JsonDocument? metadata,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        if (!await TaskExistsAsync(connection, transaction, taskId, cancellationToken))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
+        if (sessionId is not null)
+        {
+            await TouchSessionAsync(connection, transaction, sessionId.Value, cancellationToken);
+        }
+
+        const string sql =
+            """
+            INSERT INTO coordination.task_artifacts (
+                id,
+                task_id,
+                agent_session_id,
+                artifact_kind,
+                value,
+                metadata)
+            VALUES (
+                @id,
+                @taskId,
+                @sessionId,
+                @artifactKind,
+                @value,
+                @metadata)
+            RETURNING id, task_id, agent_session_id, artifact_kind, value, metadata, created_utc;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("taskId", taskId);
+        command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("artifactKind", artifactKind);
+        command.Parameters.AddWithValue("value", value);
+        command.Parameters.AddWithValue("metadata", metadata ?? EmptyJson);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        var artifact = MapTaskArtifact(reader);
+        await transaction.CommitAsync(cancellationToken);
+        return artifact;
     }
 
     public async Task<IReadOnlyList<AgentSessionDto>> ListAgentSessionsAsync(Guid workspaceId, CancellationToken cancellationToken)
@@ -675,6 +1002,45 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
             reader.GetFieldValue<DateTimeOffset>(8));
     }
 
+    private static TaskChecklistItemDto MapTaskChecklistItem(NpgsqlDataReader reader)
+    {
+        return new TaskChecklistItemDto(
+            reader.GetGuid(0),
+            reader.GetGuid(1),
+            reader.GetInt32(2),
+            reader.GetString(3),
+            reader.GetBoolean(4),
+            reader.GetBoolean(5),
+            reader.IsDBNull(6) ? null : reader.GetGuid(6),
+            reader.IsDBNull(7) ? null : reader.GetFieldValue<DateTimeOffset>(7),
+            reader.GetFieldValue<DateTimeOffset>(8),
+            reader.GetFieldValue<DateTimeOffset>(9));
+    }
+
+    private static TaskUpdateDto MapTaskUpdate(NpgsqlDataReader reader)
+    {
+        return new TaskUpdateDto(
+            reader.GetInt64(0),
+            reader.GetGuid(1),
+            reader.IsDBNull(2) ? null : reader.GetGuid(2),
+            reader.GetString(3),
+            reader.GetString(4),
+            reader.GetFieldValue<JsonDocument>(5),
+            reader.GetFieldValue<DateTimeOffset>(6));
+    }
+
+    private static TaskArtifactDto MapTaskArtifact(NpgsqlDataReader reader)
+    {
+        return new TaskArtifactDto(
+            reader.GetGuid(0),
+            reader.GetGuid(1),
+            reader.IsDBNull(2) ? null : reader.GetGuid(2),
+            reader.GetString(3),
+            reader.GetString(4),
+            reader.GetFieldValue<JsonDocument>(5),
+            reader.GetFieldValue<DateTimeOffset>(6));
+    }
+
     private static AgentSessionDto MapAgentSession(NpgsqlDataReader reader, AgentSessionStateDto? state = null)
     {
         state ??= new AgentSessionStateDto(reader.GetInt32(4), string.Empty, string.Empty);
@@ -719,5 +1085,60 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         return AgentSessionStates.TryGetValue(stateId, out var state)
             ? state
             : new AgentSessionStateDto(stateId, "unknown", "Unknown");
+    }
+
+    private static async Task<bool> TaskExistsAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid taskId,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            """
+            SELECT 1
+            FROM coordination.tasks
+            WHERE id = @taskId;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("taskId", taskId);
+        return await command.ExecuteScalarAsync(cancellationToken) is not null;
+    }
+
+    private static async Task<int> GetNextChecklistOrdinalAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid taskId,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            """
+            SELECT COALESCE(MAX(ordinal), 0) + 1
+            FROM coordination.task_checklist_items
+            WHERE task_id = @taskId;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("taskId", taskId);
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(value);
+    }
+
+    private static async Task TouchSessionAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            """
+            UPDATE coordination.agent_sessions
+            SET heartbeat_utc = NOW()
+            WHERE id = @sessionId;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("sessionId", sessionId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

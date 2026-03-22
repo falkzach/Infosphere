@@ -24,6 +24,46 @@ export type Task = {
   updatedUtc: string;
 };
 
+export type TaskChecklistItem = {
+  id: string;
+  taskId: string;
+  ordinal: number;
+  title: string;
+  isRequired: boolean;
+  isCompleted: boolean;
+  completedByAgentSessionId: string | null;
+  completedUtc: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type TaskUpdate = {
+  id: number;
+  taskId: string;
+  agentSessionId: string | null;
+  updateKind: string;
+  summary: string;
+  details: Record<string, unknown>;
+  createdUtc: string;
+};
+
+export type TaskArtifact = {
+  id: string;
+  taskId: string;
+  agentSessionId: string | null;
+  artifactKind: string;
+  value: string;
+  metadata: Record<string, unknown>;
+  createdUtc: string;
+};
+
+export type TaskExecution = {
+  taskId: string;
+  checklistItems: TaskChecklistItem[];
+  updates: TaskUpdate[];
+  artifacts: TaskArtifact[];
+};
+
 export type AgentSession = {
   id: string;
   workspaceId: string;

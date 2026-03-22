@@ -24,7 +24,12 @@ public sealed class TasksController(InfosphereRepository repository) : Controlle
         [FromBody] CreateTaskRequest request,
         CancellationToken cancellationToken)
     {
-        var task = await repository.CreateTaskAsync(request.WorkspaceId, request.Title, request.Priority, cancellationToken);
+        var task = await repository.CreateTaskAsync(
+            request.WorkspaceId,
+            request.Title,
+            request.Priority,
+            request.SuccessCriteria,
+            cancellationToken);
         return CreatedAtAction(nameof(List), new { workspaceId = task.WorkspaceId }, MapTask(task));
     }
 
@@ -48,6 +53,83 @@ public sealed class TasksController(InfosphereRepository repository) : Controlle
         return task is null ? NotFound() : Ok(MapTask(task));
     }
 
+    [HttpGet("{taskId:guid}/execution")]
+    public async Task<ActionResult<TaskExecutionResponse>> GetExecution(
+        Guid taskId,
+        CancellationToken cancellationToken)
+    {
+        var execution = await repository.GetTaskExecutionAsync(taskId, cancellationToken);
+        return execution is null ? NotFound() : Ok(MapExecution(execution));
+    }
+
+    [HttpPost("{taskId:guid}/checklist")]
+    public async Task<ActionResult<TaskChecklistItemResponse>> AddChecklistItem(
+        Guid taskId,
+        [FromBody] AddTaskChecklistItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var item = await repository.AddTaskChecklistItemAsync(
+            taskId,
+            request.Title,
+            request.IsRequired,
+            request.Ordinal,
+            request.SessionId,
+            cancellationToken);
+
+        return item is null ? NotFound() : Ok(MapChecklistItem(item));
+    }
+
+    [HttpPost("{taskId:guid}/checklist/{checklistItemId:guid}/completion")]
+    public async Task<ActionResult<TaskChecklistItemResponse>> CompleteChecklistItem(
+        Guid taskId,
+        Guid checklistItemId,
+        [FromBody] CompleteTaskChecklistItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var item = await repository.CompleteTaskChecklistItemAsync(
+            taskId,
+            checklistItemId,
+            request.IsCompleted,
+            request.SessionId,
+            cancellationToken);
+
+        return item is null ? NotFound() : Ok(MapChecklistItem(item));
+    }
+
+    [HttpPost("{taskId:guid}/updates")]
+    public async Task<ActionResult<TaskUpdateResponse>> CreateUpdate(
+        Guid taskId,
+        [FromBody] CreateTaskUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var update = await repository.CreateTaskUpdateAsync(
+            taskId,
+            request.SessionId,
+            request.UpdateKind,
+            request.Summary,
+            request.Details,
+            cancellationToken);
+
+        return update is null ? NotFound() : Ok(MapTaskUpdate(update));
+    }
+
+    [HttpPost("{taskId:guid}/artifacts")]
+    public async Task<ActionResult<TaskArtifactResponse>> CreateArtifact(
+        Guid taskId,
+        [FromBody] CreateTaskArtifactRequest request,
+        CancellationToken cancellationToken)
+    {
+        var artifact = await repository.CreateTaskArtifactAsync(
+            taskId,
+            request.SessionId,
+            request.ArtifactKind,
+            request.Value,
+            request.Metadata,
+            cancellationToken);
+
+        return artifact is null ? NotFound() : Ok(MapTaskArtifact(artifact));
+    }
+
     private static TaskResponse MapTask(TaskDto dto)
     {
         return new TaskResponse(
@@ -60,5 +142,53 @@ public sealed class TasksController(InfosphereRepository repository) : Controlle
             dto.ContextEntryId,
             dto.CreatedUtc,
             dto.UpdatedUtc);
+    }
+
+    private static TaskExecutionResponse MapExecution(TaskExecutionDto dto)
+    {
+        return new TaskExecutionResponse(
+            dto.TaskId,
+            dto.ChecklistItems.Select(MapChecklistItem).ToArray(),
+            dto.Updates.Select(MapTaskUpdate).ToArray(),
+            dto.Artifacts.Select(MapTaskArtifact).ToArray());
+    }
+
+    private static TaskChecklistItemResponse MapChecklistItem(TaskChecklistItemDto dto)
+    {
+        return new TaskChecklistItemResponse(
+            dto.Id,
+            dto.TaskId,
+            dto.Ordinal,
+            dto.Title,
+            dto.IsRequired,
+            dto.IsCompleted,
+            dto.CompletedByAgentSessionId,
+            dto.CompletedUtc,
+            dto.CreatedUtc,
+            dto.UpdatedUtc);
+    }
+
+    private static TaskUpdateResponse MapTaskUpdate(TaskUpdateDto dto)
+    {
+        return new TaskUpdateResponse(
+            dto.Id,
+            dto.TaskId,
+            dto.AgentSessionId,
+            dto.UpdateKind,
+            dto.Summary,
+            dto.Details,
+            dto.CreatedUtc);
+    }
+
+    private static TaskArtifactResponse MapTaskArtifact(TaskArtifactDto dto)
+    {
+        return new TaskArtifactResponse(
+            dto.Id,
+            dto.TaskId,
+            dto.AgentSessionId,
+            dto.ArtifactKind,
+            dto.Value,
+            dto.Metadata,
+            dto.CreatedUtc);
     }
 }

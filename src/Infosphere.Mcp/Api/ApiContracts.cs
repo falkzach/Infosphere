@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Net;
 
 namespace Infosphere.Mcp.Api;
@@ -21,6 +22,42 @@ public sealed record TaskSummary(
     Guid? ContextEntryId,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);
+
+public sealed record TaskExecutionSummary(
+    Guid TaskId,
+    IReadOnlyList<TaskChecklistItemSummary> ChecklistItems,
+    IReadOnlyList<TaskUpdateSummary> Updates,
+    IReadOnlyList<TaskArtifactSummary> Artifacts);
+
+public sealed record TaskChecklistItemSummary(
+    Guid Id,
+    Guid TaskId,
+    int Ordinal,
+    string Title,
+    bool IsRequired,
+    bool IsCompleted,
+    Guid? CompletedByAgentSessionId,
+    DateTimeOffset? CompletedUtc,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
+public sealed record TaskUpdateSummary(
+    long Id,
+    Guid TaskId,
+    Guid? AgentSessionId,
+    string UpdateKind,
+    string Summary,
+    JsonDocument Details,
+    DateTimeOffset CreatedUtc);
+
+public sealed record TaskArtifactSummary(
+    Guid Id,
+    Guid TaskId,
+    Guid? AgentSessionId,
+    string ArtifactKind,
+    string Value,
+    JsonDocument Metadata,
+    DateTimeOffset CreatedUtc);
 
 public sealed record TaskStateSummary(
     int Id,
@@ -69,7 +106,30 @@ public sealed record RegisterAgentSessionRequest(
 public sealed record CreateTaskRequest(
     Guid WorkspaceId,
     string Title,
-    int Priority);
+    int Priority,
+    IReadOnlyList<string>? SuccessCriteria);
+
+public sealed record AddTaskChecklistItemRequest(
+    string Title,
+    bool IsRequired,
+    int? Ordinal,
+    Guid? SessionId);
+
+public sealed record CompleteTaskChecklistItemRequest(
+    bool IsCompleted,
+    Guid? SessionId);
+
+public sealed record CreateTaskUpdateRequest(
+    Guid? SessionId,
+    string UpdateKind,
+    string Summary,
+    JsonDocument? Details);
+
+public sealed record CreateTaskArtifactRequest(
+    Guid? SessionId,
+    string ArtifactKind,
+    string Value,
+    JsonDocument? Metadata);
 
 public sealed record CreateWorkspaceMessageRequest(
     Guid WorkspaceId,

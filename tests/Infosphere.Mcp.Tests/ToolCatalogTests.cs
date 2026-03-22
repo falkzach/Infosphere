@@ -20,14 +20,19 @@ public sealed class ToolCatalogTests
             .Select(tool => JsonSerializer.Serialize(tool))
             .ToArray();
 
+        Assert.Contains(toolNames, value => value.Contains("\"name\":\"add_task_artifact\"", StringComparison.Ordinal));
+        Assert.Contains(toolNames, value => value.Contains("\"name\":\"add_task_checklist_item\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"claim_task\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"close_agent_session\"", StringComparison.Ordinal));
+        Assert.Contains(toolNames, value => value.Contains("\"name\":\"complete_task_checklist_item\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"create_task\"", StringComparison.Ordinal));
+        Assert.Contains(toolNames, value => value.Contains("\"name\":\"get_task_execution\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"heartbeat_agent_session\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"list_available_tasks\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"list_tasks\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"list_workspaces\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"list_workspace_messages\"", StringComparison.Ordinal));
+        Assert.Contains(toolNames, value => value.Contains("\"name\":\"post_task_update\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"post_workspace_message\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"register_agent_session\"", StringComparison.Ordinal));
         Assert.Contains(toolNames, value => value.Contains("\"name\":\"transition_task_state\"", StringComparison.Ordinal));

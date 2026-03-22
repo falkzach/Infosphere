@@ -1,4 +1,13 @@
-import type { AgentSession, Task, Workspace, WorkspaceMessage } from "./types";
+import type {
+  AgentSession,
+  Task,
+  TaskArtifact,
+  TaskChecklistItem,
+  TaskExecution,
+  TaskUpdate,
+  Workspace,
+  WorkspaceMessage
+} from "./types";
 
 declare global {
   interface Window {
@@ -45,10 +54,91 @@ export function listTasks(workspaceId: string): Promise<Task[]> {
   return request<Task[]>(`/api/v0/tasks?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
-export function createTask(payload: { workspaceId: string; title: string; priority: number }): Promise<Task> {
+export function createTask(payload: {
+  workspaceId: string;
+  title: string;
+  priority: number;
+  successCriteria?: string[];
+}): Promise<Task> {
   return request<Task>("/api/v0/tasks", {
     method: "POST",
     body: JSON.stringify(payload)
+  });
+}
+
+export function getTaskExecution(taskId: string): Promise<TaskExecution> {
+  return request<TaskExecution>(`/api/v0/tasks/${encodeURIComponent(taskId)}/execution`);
+}
+
+export function addTaskChecklistItem(payload: {
+  taskId: string;
+  title: string;
+  isRequired: boolean;
+  ordinal?: number;
+  sessionId?: string;
+}): Promise<TaskChecklistItem> {
+  return request<TaskChecklistItem>(`/api/v0/tasks/${encodeURIComponent(payload.taskId)}/checklist`, {
+    method: "POST",
+    body: JSON.stringify({
+      title: payload.title,
+      isRequired: payload.isRequired,
+      ordinal: payload.ordinal ?? null,
+      sessionId: payload.sessionId ?? null
+    })
+  });
+}
+
+export function completeTaskChecklistItem(payload: {
+  taskId: string;
+  checklistItemId: string;
+  isCompleted: boolean;
+  sessionId?: string;
+}): Promise<TaskChecklistItem> {
+  return request<TaskChecklistItem>(
+    `/api/v0/tasks/${encodeURIComponent(payload.taskId)}/checklist/${encodeURIComponent(payload.checklistItemId)}/completion`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        isCompleted: payload.isCompleted,
+        sessionId: payload.sessionId ?? null
+      })
+    },
+  );
+}
+
+export function createTaskUpdate(payload: {
+  taskId: string;
+  updateKind: string;
+  summary: string;
+  details?: Record<string, unknown>;
+  sessionId?: string;
+}): Promise<TaskUpdate> {
+  return request<TaskUpdate>(`/api/v0/tasks/${encodeURIComponent(payload.taskId)}/updates`, {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: payload.sessionId ?? null,
+      updateKind: payload.updateKind,
+      summary: payload.summary,
+      details: payload.details ?? {}
+    })
+  });
+}
+
+export function createTaskArtifact(payload: {
+  taskId: string;
+  artifactKind: string;
+  value: string;
+  metadata?: Record<string, unknown>;
+  sessionId?: string;
+}): Promise<TaskArtifact> {
+  return request<TaskArtifact>(`/api/v0/tasks/${encodeURIComponent(payload.taskId)}/artifacts`, {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: payload.sessionId ?? null,
+      artifactKind: payload.artifactKind,
+      value: payload.value,
+      metadata: payload.metadata ?? {}
+    })
   });
 }
 

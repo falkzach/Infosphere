@@ -108,7 +108,8 @@ describe("App", () => {
 
     expect(await screen.findByText("Active Agent")).toBeInTheDocument();
     expect(screen.queryByText("Closed Agent")).not.toBeInTheDocument();
-    expect(screen.getByText(/Render checklist in the dashboard/i)).toBeInTheDocument();
+    // checklist title appears in both the task list preview and the execution detail panel
+    expect(screen.getAllByText(/Render checklist in the dashboard/i).length).toBeGreaterThan(0);
     expect(screen.getByText("No structured progress updates yet.")).toBeInTheDocument();
   });
 });

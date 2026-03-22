@@ -470,12 +470,14 @@ PY
       trigger_reason="new assigned tasks"
     fi
   else
-    if [[ "$assigned_count" -gt "${LAST_SEEN_ASSIGNED_COUNT:-0}" ]]; then
-      trigger_reason="new assigned tasks"
+    # Implementors and UX wake whenever they have assigned work — they need to
+    # persist on a task until completion, not just on the first appearance.
+    if [[ "$assigned_count" -gt 0 ]]; then
+      trigger_reason="assigned tasks exist"
     fi
   fi
 
-  # Update cursors unconditionally so only genuine increases trigger on the next poll
+  # Update coordinator cursors unconditionally; implementor/UX assigned count is not cursor-gated
   {
     printf 'LAST_SEEN_MESSAGE_ID=%q\n' "$current_latest_message_id"
     printf 'LAST_SEEN_AVAILABLE_COUNT=%d\n' "$current_available_count"

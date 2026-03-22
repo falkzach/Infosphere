@@ -14,6 +14,7 @@ Usage:
 
 Currently automated runtime support:
   codex
+  claude
 EOF
 }
 
@@ -222,6 +223,7 @@ relevant = [
         "stateKey": task["state"]["key"],
     }
     for task in tasks
+    # exclude terminal states: 4=completed, 5=cancelled, 99=error
     if task.get("assignedAgentId") == agent_id and task["state"]["id"] not in (4, 5, 99)
 ]
 print(json.dumps({"count": len(relevant), "tasks": relevant}))
@@ -447,6 +449,8 @@ last_seen_message_id="$(latest_workspace_message_id)"
 
 start_heartbeat_loop
 
+consecutive_wakes=0
+
 while true; do
   source "$state_file"
 
@@ -490,6 +494,7 @@ PY
   } > "$state_file"
 
   if [[ -n "$trigger_reason" ]]; then
+    consecutive_wakes=$((consecutive_wakes + 1))
     refresh_context_image
     build_runtime_prompt "$trigger_reason" "$assigned_summary" "$latest_message_id"
     maybe_clear
@@ -509,8 +514,17 @@ PY
     fi
     echo
     echo "$runtime exited. Supervisor will continue polling."
-    sleep 5
+    # Back off on repeated consecutive wakes to avoid thrashing on stuck tasks.
+    backoff=5
+    if [[ $consecutive_wakes -gt 3 ]]; then
+      backoff=$((5 * consecutive_wakes))
+      if [[ $backoff -gt 120 ]]; then
+        backoff=120
+      fi
+    fi
+    sleep "$backoff"
   else
+    consecutive_wakes=0
     sleep 15
   fi
 done

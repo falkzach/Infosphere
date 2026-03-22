@@ -53,6 +53,12 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .execution-stack { display: grid; gap: 14px; }
 .execution-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
 .checklist-item.is-complete { border-color: rgba(47, 111, 80, 0.2); background: rgba(215, 239, 224, 0.72); }
+/* Compact checklist preview inside task list items */
+.checklist-preview { margin-top: 10px; display: grid; gap: 3px; }
+.checklist-preview-item { display: flex; gap: 6px; align-items: baseline; font-size: 0.83rem; color: var(--muted); }
+.checklist-preview-item.is-complete { color: #2f6f50; }
+.checklist-status { flex-shrink: 0; font-size: 0.78rem; }
+.checklist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .code-block { margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; color: var(--muted); background: rgba(31, 42, 47, 0.04); border-radius: 10px; padding: 10px; }
 .break-all { word-break: break-all; }
 /* Workspace Messages inbox */

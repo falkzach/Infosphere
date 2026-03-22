@@ -16,14 +16,14 @@ import {
   listWorkspaces,
   registerAgentSession
 } from "./api";
-import type { AgentSession, Task, TaskExecution, Workspace, WorkspaceMessage } from "./types";
+import type { AgentSession, Task, TaskChecklistItem, TaskExecution, Workspace, WorkspaceMessage } from "./types";
 
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [taskExecution, setTaskExecution] = useState<TaskExecution | null>(null);
+  const [taskExecutions, setTaskExecutions] = useState<Map<string, TaskExecution>>(new Map());
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const [status, setStatus] = useState("Loading...");
@@ -36,6 +36,7 @@ export function App() {
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
     [selectedTaskId, tasks],
   );
+  const taskExecution = taskExecutions.get(selectedTaskId) ?? null;
   const activeSessions = useMemo(
     () => sessions.filter((session) => session.state.key === "active"),
     [sessions],
@@ -61,7 +62,7 @@ export function App() {
 
   async function refreshTaskExecution(taskId: string) {
     const execution = await getTaskExecution(taskId);
-    setTaskExecution(execution);
+    setTaskExecutions((prev) => new Map(prev).set(taskId, execution));
   }
 
   async function refresh() {
@@ -80,7 +81,7 @@ export function App() {
       if (!activeWorkspaceId) {
         setTasks([]);
         setSelectedTaskId("");
-        setTaskExecution(null);
+        setTaskExecutions(new Map());
         setSessions([]);
         setMessages([]);
         setStatus("Create a workspace to begin.");
@@ -103,10 +104,13 @@ export function App() {
           : nextTasks[0]?.id ?? "";
 
       setSelectedTaskId(activeTaskId);
-      if (activeTaskId) {
-        await refreshTaskExecution(activeTaskId);
+
+      // Fetch execution for all tasks so checklist items are visible in the list view
+      if (nextTasks.length > 0) {
+        const execResults = await Promise.all(nextTasks.map((t) => getTaskExecution(t.id)));
+        setTaskExecutions(new Map(execResults.map((e) => [e.taskId, e])));
       } else {
-        setTaskExecution(null);
+        setTaskExecutions(new Map());
       }
 
       setStatus(`Watching ${nextWorkspaces.length} workspace(s). Last refresh ${new Date().toLocaleTimeString()}.`);
@@ -312,6 +316,7 @@ export function App() {
               </div>
               <div className="item-meta">Priority {task.priority} · Assigned {task.assignedAgentId ?? "unassigned"}</div>
               <div className="item-subtle">Updated {new Date(task.updatedUtc).toLocaleString()}</div>
+              <TaskChecklistPreview items={taskExecutions.get(task.id)?.checklistItems ?? []} />
             </button>
           ))}
         </Panel>
@@ -526,6 +531,20 @@ export function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function TaskChecklistPreview(props: { items: TaskChecklistItem[] }) {
+  if (props.items.length === 0) return null;
+  return (
+    <div className="checklist-preview">
+      {props.items.map((item) => (
+        <div key={item.id} className={`checklist-preview-item${item.isCompleted ? " is-complete" : ""}`}>
+          <span className="checklist-status" aria-hidden="true">{item.isCompleted ? "✓" : "○"}</span>
+          <span className="checklist-label">{item.title}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 

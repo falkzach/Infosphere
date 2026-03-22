@@ -31,8 +31,9 @@ Recommended pattern:
 
 ```bash
 git worktree add ../Infosphere-coordinator -b agent/coordinator main
-git worktree add ../Infosphere-backend -b agent/backend main
-git worktree add ../Infosphere-frontend -b agent/frontend main
+git worktree add ../Infosphere-implementor-1 -b agent/implementor-1 main
+git worktree add ../Infosphere-implementor-2 -b agent/implementor-2 main
+git worktree add ../Infosphere-implementor-3 -b agent/implementor-3 main
 git worktree add ../Infosphere-ux -b agent/ux main
 ```
 
@@ -56,9 +57,9 @@ Write the packet to a file:
 
 ```bash
 ./scripts/bootstrap-agent.sh \
-  --role csharp-backend-implementor \
+  --role implementor \
   --runtime claude \
-  --write /tmp/backend-agent-bootstrap.md
+  --write /tmp/implementor-agent-bootstrap.md
 ```
 
 The packet includes:
@@ -97,6 +98,19 @@ Example:
 ./scripts/launch-agents.sh --runtime codex
 ```
 
+If you need to reset the agent runtime state before relaunching, use
+[scripts/close-agent-sessions.sh](/home/falkzach/code/Infosphere/scripts/close-agent-sessions.sh):
+
+```bash
+bash scripts/close-agent-sessions.sh --tmux
+```
+
+That will:
+- close any non-closed agent sessions in Postgres
+- kill the standard Infosphere `tmux` sessions when `--tmux` is passed
+
+Use `--dry-run` if you want to inspect what would be closed first.
+
 ## Supported Runtimes
 
 - `codex`
@@ -109,8 +123,7 @@ Example:
 ## Supported Roles
 
 - `coordinator`
-- `csharp-backend-implementor`
-- `vite-react-frontend-implementor`
+- `implementor`
 - `user-experience-manager`
 
 ## Recommended Launch Pattern
@@ -156,7 +169,7 @@ DOTNET_CLI_HOME=/tmp dotnet build src/Infosphere.Mcp/Infosphere.Mcp.csproj
 
 1. Start Coordinator
 2. Coordinator reviews workspace messages and available tasks
-3. Start C# Backend Implementor and/or Vite React Frontend Implementor in their own worktrees as needed
+3. Start one or more Implementors in their own worktrees as needed
 4. Start User Experience Manager in its own worktree when product behavior or usability direction needs decisions
 
 ## Future Improvement

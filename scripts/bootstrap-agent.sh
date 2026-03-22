@@ -8,8 +8,7 @@ Usage:
 
 Supported roles:
   coordinator
-  csharp-backend-implementor
-  vite-react-frontend-implementor
+  implementor
   user-experience-manager
 
 Supported runtimes:
@@ -56,7 +55,7 @@ if [[ -z "$role" || -z "$runtime" ]]; then
 fi
 
 case "$role" in
-  coordinator|csharp-backend-implementor|vite-react-frontend-implementor|user-experience-manager)
+  coordinator|implementor|user-experience-manager)
     ;;
   *)
     echo "Unsupported role: $role" >&2

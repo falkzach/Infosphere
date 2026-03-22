@@ -111,10 +111,17 @@ PY
 )"
 
 agent_id="${session_name}"
-display_name="$(python3 - "$role" <<'PY'
+display_name="$(python3 - "$session_name" "$role" <<'PY'
 import sys
-role = sys.argv[1]
-print(role.replace("-", " ").title())
+session_name, role = sys.argv[1:]
+label = session_name
+if label.startswith("infosphere-"):
+    label = label[len("infosphere-"):]
+label = label.replace("-", " ").title().strip()
+if label:
+    print(label)
+else:
+    print(role.replace("-", " ").title())
 PY
 )"
 

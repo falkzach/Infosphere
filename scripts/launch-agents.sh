@@ -14,8 +14,9 @@ Supported runtimes:
 
 Named tmux sessions created:
   infosphere-coordinator
-  infosphere-backend
-  infosphere-frontend
+  infosphere-implementor-1
+  infosphere-implementor-2
+  infosphere-implementor-3
   infosphere-ux
 EOF
 }
@@ -91,27 +92,31 @@ launch_one() {
 }
 
 launch_one "coordinator" "infosphere-coordinator" "/home/falkzach/code/Infosphere-coordinator" "/tmp/infosphere-coordinator.md"
-launch_one "csharp-backend-implementor" "infosphere-backend" "/home/falkzach/code/Infosphere-backend" "/tmp/infosphere-backend.md"
-launch_one "vite-react-frontend-implementor" "infosphere-frontend" "/home/falkzach/code/Infosphere-frontend" "/tmp/infosphere-frontend.md"
+launch_one "implementor" "infosphere-implementor-1" "/home/falkzach/code/Infosphere-implementor-1" "/tmp/infosphere-implementor-1.md"
+launch_one "implementor" "infosphere-implementor-2" "/home/falkzach/code/Infosphere-implementor-2" "/tmp/infosphere-implementor-2.md"
+launch_one "implementor" "infosphere-implementor-3" "/home/falkzach/code/Infosphere-implementor-3" "/tmp/infosphere-implementor-3.md"
 launch_one "user-experience-manager" "infosphere-ux" "/home/falkzach/code/Infosphere-ux" "/tmp/infosphere-ux.md"
 
 cat <<EOF
 Launched tmux sessions:
   infosphere-coordinator
-  infosphere-backend
-  infosphere-frontend
+  infosphere-implementor-1
+  infosphere-implementor-2
+  infosphere-implementor-3
   infosphere-ux
 
 Bootstrap packets:
   /tmp/infosphere-coordinator.md
-  /tmp/infosphere-backend.md
-  /tmp/infosphere-frontend.md
+  /tmp/infosphere-implementor-1.md
+  /tmp/infosphere-implementor-2.md
+  /tmp/infosphere-implementor-3.md
   /tmp/infosphere-ux.md
 
 Attach with:
   tmux attach -t infosphere-coordinator
-  tmux attach -t infosphere-backend
-  tmux attach -t infosphere-frontend
+  tmux attach -t infosphere-implementor-1
+  tmux attach -t infosphere-implementor-2
+  tmux attach -t infosphere-implementor-3
   tmux attach -t infosphere-ux
 EOF
 

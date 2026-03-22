@@ -128,7 +128,8 @@ public sealed class ToolCatalog(IReadOnlyDictionary<string, ToolDefinition> tool
                     [
                         ToolSchema.StringProperty("workspaceId", "Workspace identifier."),
                         ToolSchema.StringProperty("title", "Task title."),
-                        ToolSchema.IntegerProperty("priority", "Task priority, higher means more urgent.")
+                        ToolSchema.IntegerProperty("priority", "Task priority, higher means more urgent."),
+                        ToolSchema.ArrayProperty("successCriteria", "Optional success criteria checklist entries.", "string", nullable: true)
                     ],
                     required: ["workspaceId", "title", "priority"]),
                 async (arguments, cancellationToken) =>
@@ -138,6 +139,7 @@ public sealed class ToolCatalog(IReadOnlyDictionary<string, ToolDefinition> tool
                         Guid.Parse(request.WorkspaceId),
                         request.Title,
                         request.Priority,
+                        request.SuccessCriteria,
                         cancellationToken);
 
                     return ToolCallResult.FromValue(new { task }, JsonOptions);
@@ -209,6 +211,123 @@ public sealed class ToolCatalog(IReadOnlyDictionary<string, ToolDefinition> tool
                         cancellationToken);
 
                     return ToolCallResult.FromValue(new { task }, JsonOptions);
+                }),
+            ["get_task_execution"] = new ToolDefinition(
+                "get_task_execution",
+                "Get checklist items, updates, and artifacts for a task.",
+                ToolSchema.Object(
+                    properties:
+                    [
+                        ToolSchema.StringProperty("taskId", "Task identifier.")
+                    ],
+                    required: ["taskId"]),
+                async (arguments, cancellationToken) =>
+                {
+                    var request = Deserialize<GetTaskExecutionArguments>(arguments);
+                    var execution = await apiClient.GetTaskExecutionAsync(Guid.Parse(request.TaskId), cancellationToken);
+                    return ToolCallResult.FromValue(new { execution }, JsonOptions);
+                }),
+            ["add_task_checklist_item"] = new ToolDefinition(
+                "add_task_checklist_item",
+                "Add a checklist item to a task.",
+                ToolSchema.Object(
+                    properties:
+                    [
+                        ToolSchema.StringProperty("taskId", "Task identifier."),
+                        ToolSchema.StringProperty("title", "Checklist item text."),
+                        ToolSchema.BooleanProperty("isRequired", "Whether the checklist item is required.", nullable: true),
+                        ToolSchema.IntegerProperty("ordinal", "Optional explicit checklist ordering value.", nullable: true),
+                        ToolSchema.StringProperty("sessionId", "Optional agent session performing the update.", nullable: true)
+                    ],
+                    required: ["taskId", "title"]),
+                async (arguments, cancellationToken) =>
+                {
+                    var request = Deserialize<AddTaskChecklistItemArguments>(arguments);
+                    var item = await apiClient.AddTaskChecklistItemAsync(
+                        Guid.Parse(request.TaskId),
+                        request.Title,
+                        request.IsRequired ?? true,
+                        request.Ordinal,
+                        request.SessionId is null ? null : Guid.Parse(request.SessionId),
+                        cancellationToken);
+
+                    return ToolCallResult.FromValue(new { checklistItem = item }, JsonOptions);
+                }),
+            ["complete_task_checklist_item"] = new ToolDefinition(
+                "complete_task_checklist_item",
+                "Mark a task checklist item complete or incomplete.",
+                ToolSchema.Object(
+                    properties:
+                    [
+                        ToolSchema.StringProperty("taskId", "Task identifier."),
+                        ToolSchema.StringProperty("checklistItemId", "Checklist item identifier."),
+                        ToolSchema.BooleanProperty("isCompleted", "Whether the checklist item is complete.", nullable: true),
+                        ToolSchema.StringProperty("sessionId", "Optional agent session performing the update.", nullable: true)
+                    ],
+                    required: ["taskId", "checklistItemId"]),
+                async (arguments, cancellationToken) =>
+                {
+                    var request = Deserialize<CompleteTaskChecklistItemArguments>(arguments);
+                    var item = await apiClient.CompleteTaskChecklistItemAsync(
+                        Guid.Parse(request.TaskId),
+                        Guid.Parse(request.ChecklistItemId),
+                        request.IsCompleted ?? true,
+                        request.SessionId is null ? null : Guid.Parse(request.SessionId),
+                        cancellationToken);
+
+                    return ToolCallResult.FromValue(new { checklistItem = item }, JsonOptions);
+                }),
+            ["post_task_update"] = new ToolDefinition(
+                "post_task_update",
+                "Post a structured progress update against a task.",
+                ToolSchema.Object(
+                    properties:
+                    [
+                        ToolSchema.StringProperty("taskId", "Task identifier."),
+                        ToolSchema.StringProperty("updateKind", "Update kind such as progress, validation, blocked, or review."),
+                        ToolSchema.StringProperty("summary", "Short progress summary."),
+                        ToolSchema.StringProperty("sessionId", "Optional agent session performing the update.", nullable: true),
+                        ToolSchema.AnyObjectProperty("details", "Optional structured details object.", nullable: true)
+                    ],
+                    required: ["taskId", "updateKind", "summary"]),
+                async (arguments, cancellationToken) =>
+                {
+                    var request = Deserialize<PostTaskUpdateArguments>(arguments);
+                    var update = await apiClient.CreateTaskUpdateAsync(
+                        Guid.Parse(request.TaskId),
+                        request.SessionId is null ? null : Guid.Parse(request.SessionId),
+                        request.UpdateKind,
+                        request.Summary,
+                        request.Details,
+                        cancellationToken);
+
+                    return ToolCallResult.FromValue(new { update }, JsonOptions);
+                }),
+            ["add_task_artifact"] = new ToolDefinition(
+                "add_task_artifact",
+                "Attach an artifact such as a branch, commit, PR URL, or test report to a task.",
+                ToolSchema.Object(
+                    properties:
+                    [
+                        ToolSchema.StringProperty("taskId", "Task identifier."),
+                        ToolSchema.StringProperty("artifactKind", "Artifact kind such as branch, commit, pr, or test_result."),
+                        ToolSchema.StringProperty("value", "Artifact value, URL, or identifier."),
+                        ToolSchema.StringProperty("sessionId", "Optional agent session performing the update.", nullable: true),
+                        ToolSchema.AnyObjectProperty("metadata", "Optional structured metadata object.", nullable: true)
+                    ],
+                    required: ["taskId", "artifactKind", "value"]),
+                async (arguments, cancellationToken) =>
+                {
+                    var request = Deserialize<AddTaskArtifactArguments>(arguments);
+                    var artifact = await apiClient.CreateTaskArtifactAsync(
+                        Guid.Parse(request.TaskId),
+                        request.SessionId is null ? null : Guid.Parse(request.SessionId),
+                        request.ArtifactKind,
+                        request.Value,
+                        request.Metadata,
+                        cancellationToken);
+
+                    return ToolCallResult.FromValue(new { artifact }, JsonOptions);
                 }),
             ["list_workspace_messages"] = new ToolDefinition(
                 "list_workspace_messages",
@@ -282,7 +401,8 @@ public sealed class ToolCatalog(IReadOnlyDictionary<string, ToolDefinition> tool
     public sealed record CreateTaskArguments(
         string WorkspaceId,
         string Title,
-        int Priority);
+        int Priority,
+        IReadOnlyList<string>? SuccessCriteria);
 
     public sealed record ListTasksArguments(
         string WorkspaceId);
@@ -295,6 +415,36 @@ public sealed class ToolCatalog(IReadOnlyDictionary<string, ToolDefinition> tool
         string TaskId,
         int StateId,
         string? SessionId);
+
+    public sealed record GetTaskExecutionArguments(
+        string TaskId);
+
+    public sealed record AddTaskChecklistItemArguments(
+        string TaskId,
+        string Title,
+        bool? IsRequired,
+        int? Ordinal,
+        string? SessionId);
+
+    public sealed record CompleteTaskChecklistItemArguments(
+        string TaskId,
+        string ChecklistItemId,
+        bool? IsCompleted,
+        string? SessionId);
+
+    public sealed record PostTaskUpdateArguments(
+        string TaskId,
+        string UpdateKind,
+        string Summary,
+        string? SessionId,
+        JsonDocument? Details);
+
+    public sealed record AddTaskArtifactArguments(
+        string TaskId,
+        string ArtifactKind,
+        string Value,
+        string? SessionId,
+        JsonDocument? Metadata);
 
     public sealed record ListWorkspaceMessagesArguments(
         string WorkspaceId);
@@ -365,6 +515,44 @@ public static class ToolSchema
             {
                 ["type"] = nullable ? new JsonArray("integer", "null") : "integer",
                 ["description"] = description
+            });
+    }
+
+    public static KeyValuePair<string, JsonNode?> BooleanProperty(string name, string description, bool nullable = false)
+    {
+        return new KeyValuePair<string, JsonNode?>(
+            name,
+            new JsonObject
+            {
+                ["type"] = nullable ? new JsonArray("boolean", "null") : "boolean",
+                ["description"] = description
+            });
+    }
+
+    public static KeyValuePair<string, JsonNode?> ArrayProperty(string name, string description, string itemType, bool nullable = false)
+    {
+        return new KeyValuePair<string, JsonNode?>(
+            name,
+            new JsonObject
+            {
+                ["type"] = nullable ? new JsonArray("array", "null") : "array",
+                ["description"] = description,
+                ["items"] = new JsonObject
+                {
+                    ["type"] = itemType
+                }
+            });
+    }
+
+    public static KeyValuePair<string, JsonNode?> AnyObjectProperty(string name, string description, bool nullable = false)
+    {
+        return new KeyValuePair<string, JsonNode?>(
+            name,
+            new JsonObject
+            {
+                ["type"] = nullable ? new JsonArray("object", "null") : "object",
+                ["description"] = description,
+                ["additionalProperties"] = true
             });
     }
 }

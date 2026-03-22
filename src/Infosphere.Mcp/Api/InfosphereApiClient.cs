@@ -33,7 +33,21 @@ public sealed class InfosphereApiClient(HttpClient httpClient)
         return SendRequiredAsync<TaskSummary>(
             HttpMethod.Post,
             "api/v0/tasks",
-            new CreateTaskRequest(workspaceId, title, priority),
+            new CreateTaskRequest(workspaceId, title, priority, null),
+            cancellationToken);
+    }
+
+    public Task<TaskSummary> CreateTaskAsync(
+        Guid workspaceId,
+        string title,
+        int priority,
+        IReadOnlyList<string>? successCriteria,
+        CancellationToken cancellationToken)
+    {
+        return SendRequiredAsync<TaskSummary>(
+            HttpMethod.Post,
+            "api/v0/tasks",
+            new CreateTaskRequest(workspaceId, title, priority, successCriteria),
             cancellationToken);
     }
 
@@ -56,6 +70,70 @@ public sealed class InfosphereApiClient(HttpClient httpClient)
             HttpMethod.Post,
             $"api/v0/tasks/{taskId:D}/state-transitions",
             new TransitionTaskRequest(stateId, sessionId),
+            cancellationToken);
+    }
+
+    public Task<TaskExecutionSummary> GetTaskExecutionAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        return GetRequiredAsync<TaskExecutionSummary>($"api/v0/tasks/{taskId:D}/execution", cancellationToken);
+    }
+
+    public Task<TaskChecklistItemSummary> AddTaskChecklistItemAsync(
+        Guid taskId,
+        string title,
+        bool isRequired,
+        int? ordinal,
+        Guid? sessionId,
+        CancellationToken cancellationToken)
+    {
+        return SendRequiredAsync<TaskChecklistItemSummary>(
+            HttpMethod.Post,
+            $"api/v0/tasks/{taskId:D}/checklist",
+            new AddTaskChecklistItemRequest(title, isRequired, ordinal, sessionId),
+            cancellationToken);
+    }
+
+    public Task<TaskChecklistItemSummary> CompleteTaskChecklistItemAsync(
+        Guid taskId,
+        Guid checklistItemId,
+        bool isCompleted,
+        Guid? sessionId,
+        CancellationToken cancellationToken)
+    {
+        return SendRequiredAsync<TaskChecklistItemSummary>(
+            HttpMethod.Post,
+            $"api/v0/tasks/{taskId:D}/checklist/{checklistItemId:D}/completion",
+            new CompleteTaskChecklistItemRequest(isCompleted, sessionId),
+            cancellationToken);
+    }
+
+    public Task<TaskUpdateSummary> CreateTaskUpdateAsync(
+        Guid taskId,
+        Guid? sessionId,
+        string updateKind,
+        string summary,
+        JsonDocument? details,
+        CancellationToken cancellationToken)
+    {
+        return SendRequiredAsync<TaskUpdateSummary>(
+            HttpMethod.Post,
+            $"api/v0/tasks/{taskId:D}/updates",
+            new CreateTaskUpdateRequest(sessionId, updateKind, summary, details),
+            cancellationToken);
+    }
+
+    public Task<TaskArtifactSummary> CreateTaskArtifactAsync(
+        Guid taskId,
+        Guid? sessionId,
+        string artifactKind,
+        string value,
+        JsonDocument? metadata,
+        CancellationToken cancellationToken)
+    {
+        return SendRequiredAsync<TaskArtifactSummary>(
+            HttpMethod.Post,
+            $"api/v0/tasks/{taskId:D}/artifacts",
+            new CreateTaskArtifactRequest(sessionId, artifactKind, value, metadata),
             cancellationToken);
     }
 

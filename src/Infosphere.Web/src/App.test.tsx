@@ -16,7 +16,42 @@ const workspaces = [
 vi.mock("./api", () => ({
   getApiBaseUrl: () => "http://localhost:5080",
   listWorkspaces: async () => workspaces,
-  listTasks: async () => [],
+  listTasks: async () => [
+    {
+      id: "task-1",
+      workspaceId: "workspace-1",
+      title: "Expose task execution state",
+      state: {
+        id: 2,
+        key: "in_progress",
+        name: "In Progress",
+      },
+      assignedAgentId: "agent-active",
+      priority: 5,
+      contextEntryId: null,
+      createdUtc: "2026-03-21T00:00:00Z",
+      updatedUtc: "2026-03-21T00:05:00Z",
+    },
+  ],
+  getTaskExecution: async () => ({
+    taskId: "task-1",
+    checklistItems: [
+      {
+        id: "check-1",
+        taskId: "task-1",
+        ordinal: 1,
+        title: "Render checklist in the dashboard",
+        isRequired: true,
+        isCompleted: false,
+        completedByAgentSessionId: null,
+        completedUtc: null,
+        createdUtc: "2026-03-21T00:00:00Z",
+        updatedUtc: "2026-03-21T00:00:00Z",
+      },
+    ],
+    updates: [],
+    artifacts: [],
+  }),
   listAgentSessions: async () => [
     {
       id: "session-active",
@@ -54,6 +89,10 @@ vi.mock("./api", () => ({
   listWorkspaceMessages: async () => [],
   createWorkspace: vi.fn(),
   createTask: vi.fn(),
+  addTaskChecklistItem: vi.fn(),
+  completeTaskChecklistItem: vi.fn(),
+  createTaskUpdate: vi.fn(),
+  createTaskArtifact: vi.fn(),
   registerAgentSession: vi.fn(),
   createWorkspaceMessage: vi.fn(),
 }));
@@ -69,6 +108,7 @@ describe("App", () => {
 
     expect(await screen.findByText("Active Agent")).toBeInTheDocument();
     expect(screen.queryByText("Closed Agent")).not.toBeInTheDocument();
-    expect(screen.getByText("No workspace messages yet.")).toBeInTheDocument();
+    expect(screen.getByText(/Render checklist in the dashboard/i)).toBeInTheDocument();
+    expect(screen.getByText("No structured progress updates yet.")).toBeInTheDocument();
   });
 });

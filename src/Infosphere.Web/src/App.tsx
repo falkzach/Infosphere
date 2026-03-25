@@ -111,6 +111,13 @@ export function App() {
   const [msgAuthorFilter, setMsgAuthorFilter] = useState("all");
   const [expandedMsgIds, setExpandedMsgIds] = useState<Set<string>>(new Set());
 
+  // Scroll to bottom whenever the messages list updates (new messages arrive)
+  const msgScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = msgScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
   const msgKindOptions = useMemo(
     () => [...new Set(messages.map((m) => m.messageKind))].sort(),
     [messages],
@@ -353,15 +360,6 @@ export function App() {
           </button>
         </FormCard>
 
-        <FormCard title="Post Message" onSubmit={handleMessageCreate}>
-          <input name="authorType" placeholder="author type" defaultValue="human" required />
-          <input name="authorId" placeholder="author id" />
-          <input name="messageKind" placeholder="message kind" defaultValue="note" required />
-          <textarea name="content" placeholder="What should the workspace know?" rows={4} required />
-          <button type="submit" disabled={!selectedWorkspaceId}>
-            Post Message
-          </button>
-        </FormCard>
       </section>
 
       <section className="card kanban-section">
@@ -516,7 +514,7 @@ export function App() {
       </section>
 
       <section className="grid">
-        <section className="card wide">
+        <section className="card wide msg-pane">
           <div className="panel-head">
             <h2>Workspace Messages</h2>
             <span className="count-chip">{filteredMessages.length}{filteredMessages.length !== messages.length ? `/${messages.length}` : ""}</span>
@@ -544,7 +542,8 @@ export function App() {
               ))}
             </select>
           </div>
-          <div className="list">
+          {/* Fixed-height scrollable message list */}
+          <div className="msg-scroll list" ref={msgScrollRef}>
             {filteredMessages.length === 0 ? (
               <EmptyState text={messages.length === 0 ? "No workspace messages yet." : "No messages match the current filter."} />
             ) : filteredMessages.map((message) => {
@@ -588,6 +587,28 @@ export function App() {
                 </article>
               );
             })}
+          </div>
+          {/* Integrated post message widget */}
+          <div className="msg-post">
+            <form
+              className="msg-post-form"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                await handleMessageCreate(new FormData(form));
+                form.reset();
+              }}
+            >
+              <div className="msg-post-meta">
+                <input name="authorType" placeholder="author type" defaultValue="human" required />
+                <input name="authorId" placeholder="author id (optional)" />
+                <input name="messageKind" placeholder="message kind" defaultValue="note" required />
+              </div>
+              <textarea name="content" placeholder="What should the workspace know?" rows={3} required />
+              <button type="submit" disabled={!selectedWorkspaceId}>
+                Post Message
+              </button>
+            </form>
           </div>
         </section>
       </section>

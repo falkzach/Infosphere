@@ -92,6 +92,12 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .kanban-col-blocked .kanban-column-head { border-left: 3px solid var(--accent); }
 .kanban-col-completed .kanban-column-head { border-left: 3px solid #2f6f50; }
 .kanban-col-cancelled .kanban-column-head { border-left: 3px solid var(--muted); }
+/* Workspace Messages pane: fixed-height scroll + integrated post widget */
+.msg-pane { display: flex; flex-direction: column; }
+.msg-scroll { overflow-y: auto; max-height: 480px; }
+.msg-post { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
+.msg-post-form { display: grid; gap: 10px; }
+.msg-post-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
 @media (max-width: 860px) {
   .hero { flex-direction: column; }
   .hero-meta { align-items: flex-start; }

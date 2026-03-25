@@ -42,7 +42,7 @@ button { background: var(--ink); color: white; border: none; }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .list { display: grid; gap: 12px; }
-.item { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: rgba(255, 255, 255, 0.66); }
+.item { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: rgba(255, 255, 255, 0.66); min-width: 0; }
 .item-button { text-align: left; }
 .item-button.is-selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(200, 90, 61, 0.3); }
 .item-detail { background: rgba(239, 204, 170, 0.22); }

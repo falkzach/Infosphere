@@ -11,12 +11,13 @@ namespace Infosphere.Api.Controllers.V0;
 public sealed class TasksController(InfosphereRepository repository) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<TaskResponse>>> List(
+    public async Task<ActionResult<PaginatedTasksResponse>> List(
         [FromQuery] ListTasksRequest request,
         CancellationToken cancellationToken)
     {
-        var tasks = await repository.ListTasksAsync(request.WorkspaceId, request.AvailableOnly, cancellationToken);
-        return Ok(tasks.Select(MapTask).ToArray());
+        var (items, totalCount) = await repository.ListTasksAsync(
+            request.WorkspaceId, request.AvailableOnly, request.Page, request.Limit, cancellationToken);
+        return Ok(new PaginatedTasksResponse(items.Select(MapTask).ToArray(), totalCount, request.Page, request.Limit));
     }
 
     [HttpPost]

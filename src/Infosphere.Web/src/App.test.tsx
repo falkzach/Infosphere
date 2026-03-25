@@ -16,23 +16,28 @@ const workspaces = [
 vi.mock("./api", () => ({
   getApiBaseUrl: () => "http://localhost:5080",
   listWorkspaces: async () => workspaces,
-  listTasks: async () => [
-    {
-      id: "task-1",
-      workspaceId: "workspace-1",
-      title: "Expose task execution state",
-      state: {
-        id: 2,
-        key: "in_progress",
-        name: "In Progress",
+  listTasks: async () => ({
+    items: [
+      {
+        id: "task-1",
+        workspaceId: "workspace-1",
+        title: "Expose task execution state",
+        state: {
+          id: 2,
+          key: "in_progress",
+          name: "In Progress",
+        },
+        assignedAgentId: "agent-active",
+        priority: 5,
+        contextEntryId: null,
+        createdUtc: "2026-03-21T00:00:00Z",
+        updatedUtc: "2026-03-21T00:05:00Z",
       },
-      assignedAgentId: "agent-active",
-      priority: 5,
-      contextEntryId: null,
-      createdUtc: "2026-03-21T00:00:00Z",
-      updatedUtc: "2026-03-21T00:05:00Z",
-    },
-  ],
+    ],
+    totalCount: 1,
+    page: 1,
+    limit: 25,
+  }),
   getTaskExecution: async () => ({
     taskId: "task-1",
     checklistItems: [

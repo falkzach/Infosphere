@@ -24,6 +24,13 @@ export type Task = {
   updatedUtc: string;
 };
 
+export type PagedTasks = {
+  items: Task[];
+  totalCount: number;
+  page: number;
+  limit: number;
+};
+
 export type TaskChecklistItem = {
   id: string;
   taskId: string;

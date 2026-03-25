@@ -120,8 +120,14 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         return MapWorkspace(reader);
     }
 
-    public async Task<IReadOnlyList<TaskDto>> ListTasksAsync(Guid workspaceId, bool availableOnly, CancellationToken cancellationToken)
+    public async Task<(IReadOnlyList<TaskDto> Items, int TotalCount)> ListTasksAsync(
+        Guid workspaceId, bool availableOnly, int page, int limit, CancellationToken cancellationToken)
     {
+        // Clamp page and limit to safe values
+        page = Math.Max(1, page);
+        limit = Math.Clamp(limit, 1, 100);
+        var offset = (page - 1) * limit;
+
         const string sql =
             """
             SELECT
@@ -135,23 +141,31 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
                 t.created_utc,
                 t.updated_utc,
                 ts.key,
-                ts.name
+                ts.name,
+                COUNT(*) OVER() AS total_count
             FROM coordination.tasks t
             JOIN coordination.task_states ts ON ts.id = t.state_id
             WHERE t.workspace_id = @workspaceId
               AND (@availableOnly = FALSE OR (t.state_id = 1 AND t.assigned_agent_id IS NULL))
-            ORDER BY t.priority DESC, t.created_utc DESC;
+            ORDER BY t.priority DESC, t.created_utc DESC
+            LIMIT @limit OFFSET @offset;
             """;
 
         var results = new List<TaskDto>();
+        var totalCount = 0;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("workspaceId", workspaceId);
         command.Parameters.AddWithValue("availableOnly", availableOnly);
+        command.Parameters.AddWithValue("limit", limit);
+        command.Parameters.AddWithValue("offset", offset);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
         {
+            if (results.Count == 0)
+                totalCount = reader.GetInt32(11);
+
             results.Add(
                 MapTask(
                     reader,
@@ -161,7 +175,7 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
                         reader.GetString(10))));
         }
 
-        return results;
+        return (results, totalCount);
     }
 
     public async Task<TaskDto> CreateTaskAsync(

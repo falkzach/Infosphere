@@ -72,23 +72,34 @@ function loadSelectionFromStorage(): SelectionState {
 
 // --- App ---
 
+const TASK_PAGE_SIZE = 25;
+
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskTotalCount, setTaskTotalCount] = useState(0);
+  const [taskPage, setTaskPage] = useState(1);
   const [taskExecutions, setTaskExecutions] = useState<Map<string, TaskExecution>>(new Map());
 
   const [selection, dispatch] = useReducer(selectionReducer, undefined, loadSelectionFromStorage);
   const { selectedWorkspaceId, selectedTaskId } = selection;
 
-  // Ref so the interval callback always reads current selection without a stale closure
+  // Refs so interval callbacks always read current values without stale closures
   const selectionRef = useRef(selection);
   useEffect(() => { selectionRef.current = selection; }, [selection]);
+  const taskPageRef = useRef(taskPage);
+  useEffect(() => { taskPageRef.current = taskPage; }, [taskPage]);
 
   // Persist selection to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem(LS_WORKSPACE_KEY, selectedWorkspaceId);
     localStorage.setItem(LS_TASK_KEY, selectedTaskId);
   }, [selectedWorkspaceId, selectedTaskId]);
+
+  // Reset to page 1 when workspace changes
+  useEffect(() => {
+    setTaskPage(1);
+  }, [selectedWorkspaceId]);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const [status, setStatus] = useState("Loading...");
@@ -161,13 +172,15 @@ export function App() {
         return;
       }
 
-      const [nextTasks, nextSessions, nextMessages] = await Promise.all([
-        listTasks(activeWorkspaceId),
+      const [pagedTasks, nextSessions, nextMessages] = await Promise.all([
+        listTasks(activeWorkspaceId, taskPageRef.current, TASK_PAGE_SIZE),
         listAgentSessions(activeWorkspaceId),
         listWorkspaceMessages(activeWorkspaceId),
       ]);
 
+      const nextTasks = pagedTasks.items;
       setTasks(nextTasks);
+      setTaskTotalCount(pagedTasks.totalCount);
       setSessions(nextSessions);
       setMessages(nextMessages);
 
@@ -176,9 +189,10 @@ export function App() {
         currentTaskId !== "" && nextTasks.some((t) => t.id === currentTaskId)
           ? currentTaskId
           : nextTasks[0]?.id ?? "";
+      void activeTaskId; // used by reducer dispatch below
       dispatch({ type: "TASKS_LOADED", ids: nextTasks.map((t) => t.id) });
 
-      // Fetch execution for all tasks so checklist items are visible in the list view
+      // Fetch execution for all tasks on the current page so checklist items are visible in the list view
       if (nextTasks.length > 0) {
         const execResults = await Promise.all(nextTasks.map((t) => getTaskExecution(t.id)));
         setTaskExecutions(new Map(execResults.map((e) => [e.taskId, e])));

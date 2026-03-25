@@ -1,5 +1,6 @@
 import type {
   AgentSession,
+  PagedTasks,
   Task,
   TaskArtifact,
   TaskChecklistItem,
@@ -50,8 +51,10 @@ export function createWorkspace(payload: Pick<Workspace, "key" | "name" | "descr
   });
 }
 
-export function listTasks(workspaceId: string): Promise<Task[]> {
-  return request<Task[]>(`/api/v0/tasks?workspaceId=${encodeURIComponent(workspaceId)}`);
+export function listTasks(workspaceId: string, page = 1, limit = 25): Promise<PagedTasks> {
+  return request<PagedTasks>(
+    `/api/v0/tasks?workspaceId=${encodeURIComponent(workspaceId)}&page=${page}&limit=${limit}`
+  );
 }
 
 export function createTask(payload: {

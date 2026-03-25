@@ -1,4 +1,13 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+
+// Kanban columns in display order
+const KANBAN_COLUMNS: { key: string; label: string }[] = [
+  { key: "available", label: "Available" },
+  { key: "in_progress", label: "In Progress" },
+  { key: "blocked", label: "Blocked" },
+  { key: "completed", label: "Completed" },
+  { key: "cancelled", label: "Cancelled" },
+];
 import type { ReactNode } from "react";
 import {
   addTaskChecklistItem,
@@ -112,6 +121,13 @@ export function App() {
   const [msgKindFilter, setMsgKindFilter] = useState("all");
   const [msgAuthorFilter, setMsgAuthorFilter] = useState("all");
   const [expandedMsgIds, setExpandedMsgIds] = useState<Set<string>>(new Set());
+
+  // Scroll to bottom whenever the messages list updates (new messages arrive)
+  const msgScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = msgScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
 
   const msgKindOptions = useMemo(
     () => [...new Set(messages.map((m) => m.messageKind))].sort(),
@@ -358,63 +374,26 @@ export function App() {
           </button>
         </FormCard>
 
-        <FormCard title="Post Message" onSubmit={handleMessageCreate}>
-          <input name="authorType" placeholder="author type" defaultValue="human" required />
-          <input name="authorId" placeholder="author id" />
-          <input name="messageKind" placeholder="message kind" defaultValue="note" required />
-          <textarea name="content" placeholder="What should the workspace know?" rows={4} required />
-          <button type="submit" disabled={!selectedWorkspaceId}>
-            Post Message
-          </button>
-        </FormCard>
+      </section>
+
+      <section className="card kanban-section">
+        <div className="panel-head">
+          <h2>Tasks</h2>
+          <span className="count-chip">{tasks.length}</span>
+        </div>
+        {tasks.length === 0
+          ? <EmptyState text="No tasks yet." />
+          : <KanbanBoard
+              tasks={tasks}
+              selectedTaskId={selectedTaskId}
+              taskExecutions={taskExecutions}
+              onTaskSelect={(id) => dispatch({ type: "SELECT_TASK", id })}
+              onTaskExecutionRefresh={refreshTaskExecution}
+            />
+        }
       </section>
 
       <section className="grid task-grid">
-        <Panel title="Tasks" count={taskTotalCount}>
-          {tasks.length === 0 ? <EmptyState text="No tasks yet." /> : tasks.map((task) => (
-            <button
-              type="button"
-              className={`item item-button${task.id === selectedTaskId ? " is-selected" : ""}`}
-              key={task.id}
-              onClick={() => {
-                dispatch({ type: "SELECT_TASK", id: task.id });
-                void refreshTaskExecution(task.id);
-              }}
-            >
-              <div className="item-head">
-                <strong>{task.title}</strong>
-                <span className="pill">{task.state.name}</span>
-              </div>
-              <div className="item-meta">Priority {task.priority} · Assigned {task.assignedAgentId ?? "unassigned"}</div>
-              <div className="item-subtle">Updated {new Date(task.updatedUtc).toLocaleString()}</div>
-              <TaskChecklistPreview items={taskExecutions.get(task.id)?.checklistItems ?? []} />
-            </button>
-          ))}
-          {taskTotalCount > TASK_PAGE_SIZE && (
-            <div className="pagination">
-              <button
-                type="button"
-                className="pagination-btn"
-                disabled={taskPage <= 1}
-                onClick={() => setTaskPage((p) => Math.max(1, p - 1))}
-              >
-                ← Prev
-              </button>
-              <span className="pagination-info">
-                Page {taskPage} of {Math.ceil(taskTotalCount / TASK_PAGE_SIZE)}
-              </span>
-              <button
-                type="button"
-                className="pagination-btn"
-                disabled={taskPage >= Math.ceil(taskTotalCount / TASK_PAGE_SIZE)}
-                onClick={() => setTaskPage((p) => p + 1)}
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </Panel>
-
         <Panel title="Task Execution" count={selectedTask ? 1 : 0} wide>
           {!selectedTask || !taskExecution ? <EmptyState text="Select a task to inspect checklist items, updates, and artifacts." /> : (
             <div className="execution-stack">
@@ -549,7 +528,7 @@ export function App() {
       </section>
 
       <section className="grid">
-        <section className="card wide">
+        <section className="card wide msg-pane">
           <div className="panel-head">
             <h2>Workspace Messages</h2>
             <span className="count-chip">{filteredMessages.length}{filteredMessages.length !== messages.length ? `/${messages.length}` : ""}</span>
@@ -577,7 +556,8 @@ export function App() {
               ))}
             </select>
           </div>
-          <div className="list">
+          {/* Fixed-height scrollable message list */}
+          <div className="msg-scroll list" ref={msgScrollRef}>
             {filteredMessages.length === 0 ? (
               <EmptyState text={messages.length === 0 ? "No workspace messages yet." : "No messages match the current filter."} />
             ) : filteredMessages.map((message) => {
@@ -622,9 +602,88 @@ export function App() {
               );
             })}
           </div>
+          {/* Integrated post message widget */}
+          <div className="msg-post">
+            <form
+              className="msg-post-form"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                await handleMessageCreate(new FormData(form));
+                form.reset();
+              }}
+            >
+              <div className="msg-post-meta">
+                <input name="authorType" placeholder="author type" defaultValue="human" required />
+                <input name="authorId" placeholder="author id (optional)" />
+                <input name="messageKind" placeholder="message kind" defaultValue="note" required />
+              </div>
+              <textarea name="content" placeholder="What should the workspace know?" rows={3} required />
+              <button type="submit" disabled={!selectedWorkspaceId}>
+                Post Message
+              </button>
+            </form>
+          </div>
         </section>
       </section>
     </main>
+  );
+}
+
+function KanbanBoard(props: {
+  tasks: Task[];
+  selectedTaskId: string;
+  taskExecutions: Map<string, TaskExecution>;
+  onTaskSelect: (id: string) => void;
+  onTaskExecutionRefresh: (id: string) => Promise<void>;
+}) {
+  const byState = useMemo(() => {
+    const map = new Map<string, Task[]>(KANBAN_COLUMNS.map((col) => [col.key, []]));
+    for (const task of props.tasks) {
+      map.get(task.state.key)?.push(task);
+    }
+    // Sort each column by priority descending, then updated time descending
+    for (const bucket of map.values()) {
+      bucket.sort((a, b) => b.priority - a.priority || new Date(b.updatedUtc).getTime() - new Date(a.updatedUtc).getTime());
+    }
+    return map;
+  }, [props.tasks]);
+
+  return (
+    <div className="kanban-board">
+      {KANBAN_COLUMNS.map((col) => {
+        const columnTasks = byState.get(col.key) ?? [];
+        return (
+          <div key={col.key} className={`kanban-column kanban-col-${col.key}`}>
+            <div className="kanban-column-head">
+              <strong>{col.label}</strong>
+              <span className="count-chip">{columnTasks.length}</span>
+            </div>
+            <div className="kanban-cards">
+              {columnTasks.length === 0 ? (
+                <div className="item item-subtle kanban-empty">Empty</div>
+              ) : columnTasks.map((task) => (
+                <button
+                  type="button"
+                  className={`item item-button${task.id === props.selectedTaskId ? " is-selected" : ""}`}
+                  key={task.id}
+                  onClick={() => {
+                    props.onTaskSelect(task.id);
+                    void props.onTaskExecutionRefresh(task.id);
+                  }}
+                >
+                  <div className="item-head">
+                    <strong className="kanban-task-title">{task.title}</strong>
+                  </div>
+                  <div className="item-meta">P{task.priority} · {task.assignedAgentId ?? "unassigned"}</div>
+                  <TaskChecklistPreview items={props.taskExecutions.get(task.id)?.checklistItems ?? []} />
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

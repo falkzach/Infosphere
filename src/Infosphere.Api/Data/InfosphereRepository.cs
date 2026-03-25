@@ -545,7 +545,7 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("taskId", taskId);
         command.Parameters.AddWithValue("checklistItemId", checklistItemId);
         command.Parameters.AddWithValue("isCompleted", isCompleted);
-        command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
+        command.Parameters.Add(new NpgsqlParameter<Guid?>("sessionId", NpgsqlTypes.NpgsqlDbType.Uuid) { TypedValue = sessionId });
 
         TaskChecklistItemDto? item = null;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
@@ -607,7 +607,7 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
 
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("taskId", taskId);
-        command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
+        command.Parameters.Add(new NpgsqlParameter<Guid?>("sessionId", NpgsqlTypes.NpgsqlDbType.Uuid) { TypedValue = sessionId });
         command.Parameters.AddWithValue("updateKind", updateKind);
         command.Parameters.AddWithValue("summary", summary);
         command.Parameters.AddWithValue("details", details ?? EmptyJson);
@@ -667,7 +667,7 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("id", Guid.NewGuid());
         command.Parameters.AddWithValue("taskId", taskId);
-        command.Parameters.AddWithValue("sessionId", (object?)sessionId ?? DBNull.Value);
+        command.Parameters.Add(new NpgsqlParameter<Guid?>("sessionId", NpgsqlTypes.NpgsqlDbType.Uuid) { TypedValue = sessionId });
         command.Parameters.AddWithValue("artifactKind", artifactKind);
         command.Parameters.AddWithValue("value", value);
         command.Parameters.AddWithValue("metadata", metadata ?? EmptyJson);

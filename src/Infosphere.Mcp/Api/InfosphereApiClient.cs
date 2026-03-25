@@ -16,19 +16,16 @@ public sealed class InfosphereApiClient(HttpClient httpClient)
         return GetRequiredAsync<IReadOnlyList<WorkspaceSummary>>("api/v0/workspaces", cancellationToken);
     }
 
-    public async Task<IReadOnlyList<TaskSummary>> ListTasksAsync(Guid workspaceId, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<TaskSummary>> ListTasksAsync(Guid workspaceId, CancellationToken cancellationToken)
     {
-        // Fetch up to 100 tasks (API max) for agent use — pagination is a UI concern
-        var paged = await GetRequiredAsync<PagedTaskSummaryResponse>(
-            $"api/v0/tasks?workspaceId={workspaceId:D}&limit=100", cancellationToken);
-        return paged.Items;
+        return GetRequiredAsync<IReadOnlyList<TaskSummary>>($"api/v0/tasks?workspaceId={workspaceId:D}", cancellationToken);
     }
 
-    public async Task<IReadOnlyList<TaskSummary>> ListAvailableTasksAsync(Guid workspaceId, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<TaskSummary>> ListAvailableTasksAsync(Guid workspaceId, CancellationToken cancellationToken)
     {
-        var paged = await GetRequiredAsync<PagedTaskSummaryResponse>(
-            $"api/v0/tasks?workspaceId={workspaceId:D}&availableOnly=true&limit=100", cancellationToken);
-        return paged.Items;
+        return GetRequiredAsync<IReadOnlyList<TaskSummary>>(
+            $"api/v0/tasks?workspaceId={workspaceId:D}&availableOnly=true",
+            cancellationToken);
     }
 
     public Task<TaskSummary> CreateTaskAsync(Guid workspaceId, string title, int priority, CancellationToken cancellationToken)

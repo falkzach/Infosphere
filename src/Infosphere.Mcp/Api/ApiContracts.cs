@@ -59,6 +59,12 @@ public sealed record TaskArtifactSummary(
     JsonDocument Metadata,
     DateTimeOffset CreatedUtc);
 
+public sealed record PaginatedTasksSummary(
+    IReadOnlyList<TaskSummary> Items,
+    int TotalCount,
+    int Page,
+    int Limit);
+
 public sealed record TaskStateSummary(
     int Id,
     string Key,

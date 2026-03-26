@@ -62,6 +62,22 @@ function selectionReducer(state: SelectionState, action: SelectionAction): Selec
 
 const LS_WORKSPACE_KEY = "infosphere.selectedWorkspaceId";
 const LS_TASK_KEY = "infosphere.selectedTaskId";
+const LS_THEME_KEY = "infosphere.theme";
+
+// --- Theme ---
+
+type Theme = "light" | "dark";
+
+function getInitialTheme(): Theme {
+  const stored = localStorage.getItem(LS_THEME_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  // Fall back to OS preference
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+}
 
 function loadSelectionFromStorage(): SelectionState {
   return {
@@ -75,6 +91,14 @@ function loadSelectionFromStorage(): SelectionState {
 const TASK_PAGE_SIZE = 25;
 
 export function App() {
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+
+  // Apply theme to document and persist whenever it changes
+  useEffect(() => {
+    applyTheme(theme);
+    localStorage.setItem(LS_THEME_KEY, theme);
+  }, [theme]);
+
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskTotalCount, setTaskTotalCount] = useState(0);
@@ -323,6 +347,14 @@ export function App() {
           <a href={`${getApiBaseUrl()}/openapi/v0.json`} target="_blank" rel="noreferrer">
             OpenAPI
           </a>
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "☀ Light" : "☾ Dark"}
+          </button>
         </div>
       </section>
 

@@ -912,13 +912,19 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
 
     public async Task<IReadOnlyList<WorkspaceMessageDto>> ListWorkspaceMessagesAsync(Guid workspaceId, CancellationToken cancellationToken)
     {
+        // Return the 50 most recent messages in chronological order (oldest first) so
+        // the scroll pane can display them bottom-up with newest at the end.
         const string sql =
             """
             SELECT id, workspace_id, author_type, author_id, message_kind, content, metadata, created_utc
-            FROM memory.workspace_messages
-            WHERE workspace_id = @workspaceId
-            ORDER BY created_utc DESC
-            LIMIT 100;
+            FROM (
+                SELECT id, workspace_id, author_type, author_id, message_kind, content, metadata, created_utc
+                FROM memory.workspace_messages
+                WHERE workspace_id = @workspaceId
+                ORDER BY created_utc DESC
+                LIMIT 50
+            ) t
+            ORDER BY created_utc ASC;
             """;
 
         var results = new List<WorkspaceMessageDto>();

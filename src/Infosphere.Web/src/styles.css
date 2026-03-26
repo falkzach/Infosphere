@@ -33,7 +33,9 @@ button, input, select, textarea { font: inherit; }
 .toolbar { padding: 18px 20px; margin-bottom: 20px; }
 .toolbar-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-bottom: 18px; }
-.task-grid { align-items: start; }
+/* Task workspace: kanban left, execution panel right (conditional) */
+.task-workspace { display: grid; grid-template-columns: 1fr; gap: 18px; margin-bottom: 18px; align-items: start; }
+.task-workspace.has-selection { grid-template-columns: 1fr 380px; }
 .card { padding: 20px; }
 .wide { grid-column: span 2; }
 .stack { display: grid; gap: 10px; margin-top: 16px; }
@@ -50,8 +52,12 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .item-head strong { font-size: 1rem; }
 .item-meta, .item-subtle { margin-top: 8px; color: var(--muted); font-size: 0.92rem; }
 .pill { border-radius: 999px; background: rgba(200, 90, 61, 0.12); color: var(--accent); padding: 4px 10px; font-size: 0.85rem; }
-.execution-stack { display: grid; gap: 14px; }
-.execution-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+/* Task execution panel: stacked sections within the right-side card */
+.task-execution-panel { display: grid; gap: 16px; }
+.execution-section { display: grid; gap: 10px; }
+/* Inline CRUD forms within each execution section */
+.inline-form { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+.inline-form input, .inline-form select, .inline-form textarea { padding: 8px 12px; font-size: 0.88rem; }
 .checklist-item.is-complete { border-color: rgba(47, 111, 80, 0.2); background: rgba(215, 239, 224, 0.72); }
 /* Compact checklist preview inside task list items */
 .checklist-preview { margin-top: 10px; display: grid; gap: 3px; }
@@ -107,4 +113,5 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .hero { flex-direction: column; }
   .hero-meta { align-items: flex-start; }
   .wide { grid-column: span 1; }
+  .task-workspace.has-selection { grid-template-columns: 1fr; }
 }

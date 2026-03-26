@@ -7,6 +7,36 @@
   --accent-soft: #efccaa;
   --line: rgba(31, 42, 47, 0.12);
   --shadow: 0 20px 60px rgba(62, 54, 43, 0.12);
+  /* per-theme backgrounds used by specific selectors */
+  --input-bg: rgba(255, 255, 255, 0.78);
+  --item-bg: rgba(255, 255, 255, 0.66);
+  --item-detail-bg: rgba(239, 204, 170, 0.22);
+  --column-head-bg: rgba(255, 255, 255, 0.5);
+  --msg-agent-note-bg: rgba(255, 255, 255, 0.45);
+  --code-block-bg: rgba(31, 42, 47, 0.04);
+  --complete-border: rgba(47, 111, 80, 0.2);
+  --complete-bg: rgba(215, 239, 224, 0.72);
+  --complete-text: #2f6f50;
+}
+
+[data-theme="dark"] {
+  --bg: #161b1e;
+  --panel: rgba(28, 34, 38, 0.95);
+  --ink: #e0d5c8;
+  --muted: #8a9398;
+  --accent: #e07055;
+  --accent-soft: rgba(200, 90, 61, 0.28);
+  --line: rgba(224, 213, 200, 0.12);
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --item-bg: rgba(255, 255, 255, 0.05);
+  --item-detail-bg: rgba(200, 90, 61, 0.10);
+  --column-head-bg: rgba(255, 255, 255, 0.06);
+  --msg-agent-note-bg: rgba(255, 255, 255, 0.04);
+  --code-block-bg: rgba(0, 0, 0, 0.25);
+  --complete-border: rgba(47, 150, 90, 0.25);
+  --complete-bg: rgba(47, 111, 80, 0.18);
+  --complete-text: #5bab7a;
 }
 
 * { box-sizing: border-box; }
@@ -18,6 +48,12 @@ body {
     radial-gradient(circle at top left, rgba(200, 90, 61, 0.18), transparent 28%),
     radial-gradient(circle at top right, rgba(239, 204, 170, 0.8), transparent 24%),
     linear-gradient(180deg, #f7f3ec 0%, var(--bg) 100%);
+}
+[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at top left, rgba(200, 90, 61, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(50, 35, 25, 0.6), transparent 24%),
+    linear-gradient(180deg, #1a2026 0%, var(--bg) 100%);
 }
 button, input, select, textarea { font: inherit; }
 .app-shell { width: min(1320px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 48px; }
@@ -39,15 +75,15 @@ button, input, select, textarea { font: inherit; }
 .card { padding: 20px; }
 .wide { grid-column: span 2; }
 .stack { display: grid; gap: 10px; margin-top: 16px; }
-input, select, textarea, button { width: 100%; border-radius: 12px; border: 1px solid var(--line); padding: 12px 14px; background: rgba(255, 255, 255, 0.78); }
-button { background: var(--ink); color: white; border: none; }
+input, select, textarea, button { width: 100%; border-radius: 12px; border: 1px solid var(--line); padding: 12px 14px; background: var(--input-bg); }
+button { background: var(--ink); color: var(--panel); border: none; }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .list { display: grid; gap: 12px; }
-.item { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: rgba(255, 255, 255, 0.66); min-width: 0; }
+.item { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--item-bg); min-width: 0; }
 .item-button { text-align: left; }
 .item-button.is-selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(200, 90, 61, 0.3); }
-.item-detail { background: rgba(239, 204, 170, 0.22); }
+.item-detail { background: var(--item-detail-bg); }
 .item-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .item-head strong { font-size: 1rem; }
 .item-meta, .item-subtle { margin-top: 8px; color: var(--muted); font-size: 0.92rem; }
@@ -58,19 +94,19 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* Inline CRUD forms within each execution section */
 .inline-form { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
 .inline-form input, .inline-form select, .inline-form textarea { padding: 8px 12px; font-size: 0.88rem; }
-.checklist-item.is-complete { border-color: rgba(47, 111, 80, 0.2); background: rgba(215, 239, 224, 0.72); }
+.checklist-item.is-complete { border-color: var(--complete-border); background: var(--complete-bg); }
 /* Compact checklist preview inside task list items */
 .checklist-preview { margin-top: 10px; display: grid; gap: 3px; }
 .checklist-preview-item { display: flex; gap: 6px; align-items: baseline; font-size: 0.83rem; color: var(--muted); }
-.checklist-preview-item.is-complete { color: #2f6f50; }
+.checklist-preview-item.is-complete { color: var(--complete-text); }
 .checklist-status { flex-shrink: 0; font-size: 0.78rem; }
 .checklist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); margin-top: 4px; }
-.pagination-btn { flex-shrink: 0; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; font-size: 0.88rem; cursor: pointer; color: var(--fg); }
+.pagination-btn { flex-shrink: 0; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; font-size: 0.88rem; cursor: pointer; color: var(--ink); }
 .pagination-btn:disabled { opacity: 0.4; cursor: default; }
 .pagination-btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
 .pagination-info { font-size: 0.88rem; color: var(--muted); text-align: center; flex: 1; }
-.code-block { margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; color: var(--muted); background: rgba(31, 42, 47, 0.04); border-radius: 10px; padding: 10px; }
+.code-block { margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; color: var(--muted); background: var(--code-block-bg); border-radius: 10px; padding: 10px; }
 .break-all { word-break: break-all; }
 /* Workspace Messages inbox */
 .msg-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
@@ -79,9 +115,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* human/operator messages are the most actionable — highlight with left accent border */
 .msg-human { border-left: 3px solid var(--accent); background: rgba(200, 90, 61, 0.06); }
 /* assessment messages have moderate visual weight */
-.msg-assessment { border-left: 3px solid rgba(31, 42, 47, 0.22); }
+.msg-assessment { border-left: 3px solid var(--line); }
 /* background agent notes are de-emphasised */
-.msg-agent-note { background: rgba(255, 255, 255, 0.45); }
+.msg-agent-note { background: var(--msg-agent-note-bg); }
 .msg-body { margin-top: 8px; font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .msg-expand { display: inline-block; width: auto; background: none; border: none; color: var(--accent); font-size: 0.82rem; padding: 2px 0; margin-top: 6px; cursor: pointer; text-decoration: underline; }
 /* Kanban board */
@@ -91,7 +127,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .kanban-board::-webkit-scrollbar-track { background: transparent; }
 .kanban-board::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
 .kanban-column { flex: 0 0 240px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.kanban-column-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.5); border: 1px solid var(--line); }
+.kanban-column-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 12px; background: var(--column-head-bg); border: 1px solid var(--line); }
 .kanban-column-head strong { font-size: 0.88rem; text-transform: capitalize; }
 .kanban-column-head .count-chip { min-width: 28px; padding: 3px 8px; font-size: 0.8rem; }
 .kanban-cards { display: flex; flex-direction: column; gap: 8px; min-height: 48px; }
@@ -109,6 +145,19 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .msg-post { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
 .msg-post-form { display: grid; gap: 10px; }
 .msg-post-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+/* Theme toggle button — compact, icon-only style */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  cursor: pointer;
+  width: auto;
+  white-space: nowrap;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--accent); }
 @media (max-width: 860px) {
   .hero { flex-direction: column; }
   .hero-meta { align-items: flex-start; }

@@ -373,46 +373,52 @@ export function App() {
             Create Task
           </button>
         </FormCard>
-
       </section>
 
-      <section className="card kanban-section">
-        <div className="panel-head">
-          <h2>Tasks</h2>
-          <span className="count-chip">{tasks.length}</span>
-        </div>
-        {tasks.length === 0
-          ? <EmptyState text="No tasks yet." />
-          : <KanbanBoard
-              tasks={tasks}
-              selectedTaskId={selectedTaskId}
-              taskExecutions={taskExecutions}
-              onTaskSelect={(id) => dispatch({ type: "SELECT_TASK", id })}
-              onTaskExecutionRefresh={refreshTaskExecution}
-            />
-        }
-      </section>
+      {/* Task workspace: kanban on the left, execution panel on the right when a task is selected */}
+      <section className={`task-workspace${selectedTask ? " has-selection" : ""}`}>
+        <section className="card kanban-section">
+          <div className="panel-head">
+            <h2>Tasks</h2>
+            <span className="count-chip">{tasks.length}</span>
+          </div>
+          {tasks.length === 0
+            ? <EmptyState text="No tasks yet." />
+            : <KanbanBoard
+                tasks={tasks}
+                selectedTaskId={selectedTaskId}
+                taskExecutions={taskExecutions}
+                onTaskSelect={(id) => dispatch({ type: "SELECT_TASK", id })}
+                onTaskExecutionRefresh={refreshTaskExecution}
+              />
+          }
+        </section>
 
-      <section className="grid task-grid">
-        <Panel title="Task Execution" count={selectedTask ? 1 : 0} wide>
-          {!selectedTask || !taskExecution ? <EmptyState text="Select a task to inspect checklist items, updates, and artifacts." /> : (
-            <div className="execution-stack">
-              <article className="item item-detail">
-                <div className="item-head">
-                  <strong>{selectedTask.title}</strong>
-                  <span className="pill">{selectedTask.state.name}</span>
-                </div>
-                <div className="item-meta">Priority {selectedTask.priority} · Assigned {selectedTask.assignedAgentId ?? "unassigned"}</div>
-              </article>
+        {/* Right-side execution panel — only rendered when a task is selected */}
+        {selectedTask && (
+          <section className="card task-execution-panel">
+            <article className="item item-detail">
+              <div className="item-head">
+                <strong>{selectedTask.title}</strong>
+                <span className="pill">{selectedTask.state.name}</span>
+              </div>
+              <div className="item-meta">Priority {selectedTask.priority} · Assigned {selectedTask.assignedAgentId ?? "unassigned"}</div>
+            </article>
 
-              <section className="execution-grid">
-                <div className="item">
-                  <div className="item-head">
+            {!taskExecution ? (
+              <EmptyState text="Loading execution data..." />
+            ) : (
+              <>
+                {/* Checklist */}
+                <div className="execution-section">
+                  <div className="panel-head">
                     <strong>Checklist</strong>
                     <span className="count-chip">{taskExecution.checklistItems.length}</span>
                   </div>
                   <div className="list">
-                    {taskExecution.checklistItems.length === 0 ? <EmptyState text="No success criteria yet." /> : taskExecution.checklistItems.map((item) => (
+                    {taskExecution.checklistItems.length === 0 ? (
+                      <EmptyState text="No success criteria yet." />
+                    ) : taskExecution.checklistItems.map((item) => (
                       <button
                         type="button"
                         className={`item item-button checklist-item${item.isCompleted ? " is-complete" : ""}`}
@@ -431,15 +437,30 @@ export function App() {
                       </button>
                     ))}
                   </div>
+                  <form
+                    className="inline-form"
+                    onSubmit={async (e) => { e.preventDefault(); await handleChecklistCreate(new FormData(e.currentTarget)); e.currentTarget.reset(); }}
+                  >
+                    <input name="title" placeholder="Success criterion" required />
+                    <select name="isRequired" defaultValue="true">
+                      <option value="true">Required</option>
+                      <option value="false">Optional</option>
+                    </select>
+                    <input name="sessionId" placeholder="session id (optional)" />
+                    <button type="submit">Add Criterion</button>
+                  </form>
                 </div>
 
-                <div className="item">
-                  <div className="item-head">
+                {/* Updates */}
+                <div className="execution-section">
+                  <div className="panel-head">
                     <strong>Updates</strong>
                     <span className="count-chip">{taskExecution.updates.length}</span>
                   </div>
                   <div className="list">
-                    {taskExecution.updates.length === 0 ? <EmptyState text="No structured progress updates yet." /> : taskExecution.updates.map((update) => (
+                    {taskExecution.updates.length === 0 ? (
+                      <EmptyState text="No structured progress updates yet." />
+                    ) : taskExecution.updates.map((update) => (
                       <article className="item" key={update.id}>
                         <div className="item-head">
                           <strong>{update.updateKind}</strong>
@@ -452,15 +473,28 @@ export function App() {
                       </article>
                     ))}
                   </div>
+                  <form
+                    className="inline-form"
+                    onSubmit={async (e) => { e.preventDefault(); await handleTaskUpdateCreate(new FormData(e.currentTarget)); e.currentTarget.reset(); }}
+                  >
+                    <input name="updateKind" placeholder="progress | validation | blocked" defaultValue="progress" required />
+                    <textarea name="summary" placeholder="What changed?" rows={2} required />
+                    <textarea name="details" placeholder='JSON details, optional. Example: {"tests":["npm test"]}' rows={2} />
+                    <input name="sessionId" placeholder="session id (optional)" />
+                    <button type="submit">Post Update</button>
+                  </form>
                 </div>
 
-                <div className="item">
-                  <div className="item-head">
+                {/* Artifacts */}
+                <div className="execution-section">
+                  <div className="panel-head">
                     <strong>Artifacts</strong>
                     <span className="count-chip">{taskExecution.artifacts.length}</span>
                   </div>
                   <div className="list">
-                    {taskExecution.artifacts.length === 0 ? <EmptyState text="No branch, commit, PR, or validation artifacts yet." /> : taskExecution.artifacts.map((artifact) => (
+                    {taskExecution.artifacts.length === 0 ? (
+                      <EmptyState text="No branch, commit, PR, or validation artifacts yet." />
+                    ) : taskExecution.artifacts.map((artifact) => (
                       <article className="item" key={artifact.id}>
                         <div className="item-head">
                           <strong>{artifact.artifactKind}</strong>
@@ -473,46 +507,24 @@ export function App() {
                       </article>
                     ))}
                   </div>
+                  <form
+                    className="inline-form"
+                    onSubmit={async (e) => { e.preventDefault(); await handleTaskArtifactCreate(new FormData(e.currentTarget)); e.currentTarget.reset(); }}
+                  >
+                    <input name="artifactKind" placeholder="branch | commit | pr | test_result" defaultValue="pr" required />
+                    <input name="value" placeholder="Artifact URL or identifier" required />
+                    <textarea name="metadata" placeholder='JSON metadata, optional. Example: {"status":"open"}' rows={2} />
+                    <input name="sessionId" placeholder="session id (optional)" />
+                    <button type="submit">Attach Artifact</button>
+                  </form>
                 </div>
-              </section>
-            </div>
-          )}
-        </Panel>
+              </>
+            )}
+          </section>
+        )}
       </section>
 
       <section className="grid">
-        <FormCard title="Add Checklist Item" onSubmit={handleChecklistCreate}>
-          <input name="title" placeholder="Success criterion" required />
-          <select name="isRequired" defaultValue="true">
-            <option value="true">Required</option>
-            <option value="false">Optional</option>
-          </select>
-          <input name="sessionId" placeholder="session id (optional)" />
-          <button type="submit" disabled={!selectedTaskId}>
-            Add Criterion
-          </button>
-        </FormCard>
-
-        <FormCard title="Post Task Update" onSubmit={handleTaskUpdateCreate}>
-          <input name="updateKind" placeholder="progress | validation | blocked" defaultValue="progress" required />
-          <textarea name="summary" placeholder="What changed?" rows={3} required />
-          <textarea name="details" placeholder='JSON details, optional. Example: {"tests":["npm test"]}' rows={3} />
-          <input name="sessionId" placeholder="session id (optional)" />
-          <button type="submit" disabled={!selectedTaskId}>
-            Post Update
-          </button>
-        </FormCard>
-
-        <FormCard title="Add Task Artifact" onSubmit={handleTaskArtifactCreate}>
-          <input name="artifactKind" placeholder="branch | commit | pr | test_result" defaultValue="pr" required />
-          <input name="value" placeholder="Artifact URL or identifier" required />
-          <textarea name="metadata" placeholder='JSON metadata, optional. Example: {"status":"open"}' rows={3} />
-          <input name="sessionId" placeholder="session id (optional)" />
-          <button type="submit" disabled={!selectedTaskId}>
-            Attach Artifact
-          </button>
-        </FormCard>
-
         <Panel title="Agent Sessions" count={activeSessions.length}>
           {activeSessions.length === 0 ? <EmptyState text="No active agent sessions." /> : activeSessions.map((session) => (
             <article className="item" key={session.id}>

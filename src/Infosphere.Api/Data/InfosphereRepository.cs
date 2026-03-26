@@ -912,13 +912,15 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
 
     public async Task<IReadOnlyList<WorkspaceMessageDto>> ListWorkspaceMessagesAsync(Guid workspaceId, CancellationToken cancellationToken)
     {
+        // Fetch the 50 most recent messages newest-first, then reverse in C# to return
+        // them in chronological order (oldest first) for display.
         const string sql =
             """
             SELECT id, workspace_id, author_type, author_id, message_kind, content, metadata, created_utc
             FROM memory.workspace_messages
             WHERE workspace_id = @workspaceId
             ORDER BY created_utc DESC
-            LIMIT 100;
+            LIMIT 50;
             """;
 
         var results = new List<WorkspaceMessageDto>();
@@ -932,6 +934,7 @@ public sealed class InfosphereRepository(NpgsqlDataSource dataSource)
             results.Add(MapWorkspaceMessage(reader));
         }
 
+        results.Reverse();
         return results;
     }
 
